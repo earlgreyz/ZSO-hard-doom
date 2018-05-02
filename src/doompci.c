@@ -1,4 +1,5 @@
 #include <linux/kernel.h>
+#include <linux/pci.h>
 
 #include "doompci.h"
 #include "doompci/device.h"
@@ -13,7 +14,8 @@ static int load_microcode(struct pci_dev *dev) {
 
   iowrite32(BAR0 + DOOMPCI_FE_CODE_ADDR, 0);
 
-  for (size_t i = 0; i < ARRAY_SIZE(doomcode); ++i) {
+  size_t i;
+  for (i = 0; i < ARRAY_SIZE(doomcode); ++i) {
     iowrite32(BAR0 + DOOMPCI_FE_CODE_WINDOW, doomcode[i]);
   }
 
@@ -21,7 +23,7 @@ static int load_microcode(struct pci_dev *dev) {
   // Initialize command iomem here (CMD_*_PTR)
   iowrite32(BAR0 + DOOMPCI_INTR, INTR_ALL);
   // Enable used interrupts (INTR_ENABLE) here
-  iowrite32(BAR0 + DOOMPCI_ENABLE, ENABLE_ALL & ~ENABLE_FETCH)
+  iowrite32(BAR0 + DOOMPCI_ENABLE, ENABLE_ALL & ~ENABLE_FETCH);
 
   pci_iounmap(dev, BAR0);
   return 0;
@@ -44,7 +46,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   }
 
   err = load_microcode(dev);
-  if (IS_ERR(err)) {
+  if (IS_ERR_VALUE(err)) {
     printk(KERN_ERR "Probe error: load_microcode\n");
     goto probe_microcode_err;
   }
@@ -68,8 +70,8 @@ static void remove(struct pci_dev *dev) {
 }
 
 static const struct pci_device_id pci_ids[] = {
-  PCI_DEVICE(DOOMPCI_VENDOR_ID, DOOMPCI_DEVICE_ID),
-  {},
+  { PCI_DEVICE(DOOMPCI_VENDOR_ID, DOOMPCI_DEVICE_ID) },
+  { },
 };
 
 static struct pci_driver pci_driver = {

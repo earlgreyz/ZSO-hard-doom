@@ -15,5 +15,5 @@ static void __exit doom_exit(void) {
   doom_pci_unregister_driver();
 }
 
-module_init(doompci_init);
-module_exit(doompci_exit);
+module_init(doom_init);
+module_exit(doom_exit);
