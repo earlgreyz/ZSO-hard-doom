@@ -1,2 +1,2 @@
-obj-m: doom.o
-doom-objs: doommodule.o doompci.o
+obj-m := doom.o
+doom-objs := doommodule.o doompci.o
