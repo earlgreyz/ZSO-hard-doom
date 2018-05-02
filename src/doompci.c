@@ -7,30 +7,32 @@
 #include "doompci/registers.h"
 
 static int load_microcode(struct pci_dev *dev) {
-  void __iomem *BAR0 = pci_iomap(dev, 0, 0);
+  size_t i;
+  void __iomem *BAR0;
+
+  BAR0 = pci_iomap(dev, 0, 0);
   if (IS_ERR(BAR0)) {
     return PTR_ERR(BAR0);
   }
 
-  iowrite32(BAR0 + DOOMPCI_FE_CODE_ADDR, 0);
+  iowrite32(0, BAR0 + DOOMPCI_FE_CODE_ADDR);
 
-  size_t i;
   for (i = 0; i < ARRAY_SIZE(doomcode); ++i) {
-    iowrite32(BAR0 + DOOMPCI_FE_CODE_WINDOW, doomcode[i]);
+    iowrite32(doomcode[i], BAR0 + DOOMPCI_FE_CODE_WINDOW);
   }
 
-  iowrite32(BAR0 + DOOMPCI_RESET, RESET_ALL);
+  iowrite32(RESET_ALL, BAR0 + DOOMPCI_RESET);
   // Initialize command iomem here (CMD_*_PTR)
-  iowrite32(BAR0 + DOOMPCI_INTR, INTR_ALL);
+  iowrite32(INTR_ALL, BAR0 + DOOMPCI_INTR);
   // Enable used interrupts (INTR_ENABLE) here
-  iowrite32(BAR0 + DOOMPCI_ENABLE, ENABLE_ALL & ~ENABLE_FETCH);
+  iowrite32(ENABLE_ALL & ~ENABLE_FETCH, BAR0 + DOOMPCI_ENABLE);
 
   pci_iounmap(dev, BAR0);
   return 0;
 }
 
 static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
-  int err;
+  unsigned long err;
   printk(KERN_INFO "Probe started\n");
 
   err = pci_enable_device(dev);
