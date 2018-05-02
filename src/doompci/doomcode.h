@@ -1,4 +1,7 @@
-static const uint32_t doomcode[] = {
+#ifndef DOOMPCI_DOOMCODE_H
+#define DOOMPCI_DOOMCODE_H
+
+const uint32_t doomcode[] = {
 	0x12000000,
 	0x12800000,
 	0x12c00000,
@@ -570,3 +573,5 @@ static const uint32_t doomcode[] = {
 	0x0003f00b,
 	0x00100008,
 };
+
+#endif
