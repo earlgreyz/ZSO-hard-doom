@@ -31,23 +31,21 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   unsigned long err;
   void __iomem *BAR0;
 
-  printk(KERN_INFO "Probe started\n");
-
   err = pci_enable_device(dev);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_ERR "Probe error: pci_enable_device\n");
+    printk(KERN_ERR "[doompci] Probe error: pci_enable_device\n");
     goto probe_enable_err;
   }
 
   err = pci_request_regions(dev, "doompci");
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_ERR "Probe error: pci_request_regions\n");
+    printk(KERN_ERR "[doompci] Probe error: pci_request_regions\n");
     goto probe_request_err;
   }
 
   BAR0 = pci_iomap(dev, 0, 0);
   if (IS_ERR(BAR0)) {
-    printk(KERN_INFO "Probe error: pci_iomap\n");
+    printk(KERN_INFO "[doompci] Probe error: pci_iomap\n");
     err = PTR_ERR(BAR0);
     goto probe_iomap_err;
   }
@@ -55,7 +53,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   pci_set_drvdata(dev, BAR0);
   load_microcode(dev);
 
-  printk(KERN_INFO "Probe finished\n");
+  printk(KERN_INFO "[doompci] Probe success\n");
   return 0;
 
 probe_iomap_err:
@@ -67,10 +65,10 @@ probe_enable_err:
 }
 
 static void remove(struct pci_dev *dev) {
-  printk(KERN_INFO "Remove\n");
   pci_iounmap(dev, pci_get_drvdata(dev));
   pci_release_regions(dev);
   pci_disable_device(dev);
+  printk(KERN_INFO "[doompci] Remove finished\n");
 }
 
 static const struct pci_device_id pci_ids[] = {
@@ -79,7 +77,7 @@ static const struct pci_device_id pci_ids[] = {
 };
 
 static struct pci_driver pci_driver = {
-  .name = "doom pci",
+  .name = "doompci",
   .id_table = pci_ids,
   .probe = probe,
   .remove = remove,
