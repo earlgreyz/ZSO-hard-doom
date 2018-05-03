@@ -1,0 +1,10 @@
+*.o
+*.cmd
+*.mod.c
+*.ko
+
+src/.cache.mk
+src/.tmp_versions/
+src/Module.symvers
+src/doom.mod.c
+src/modules.order
