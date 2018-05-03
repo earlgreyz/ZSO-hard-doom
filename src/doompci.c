@@ -10,10 +10,7 @@ static int load_microcode(struct pci_dev *dev) {
   size_t i;
   void __iomem *BAR0;
 
-  BAR0 = pci_iomap(dev, 0, 0);
-  if (IS_ERR(BAR0)) {
-    return PTR_ERR(BAR0);
-  }
+  BAR0 = pci_get_drvdata(dev);
 
   iowrite32(0, BAR0 + DOOMPCI_FE_CODE_ADDR);
 
@@ -27,12 +24,13 @@ static int load_microcode(struct pci_dev *dev) {
   // Enable used interrupts (INTR_ENABLE) here
   iowrite32(ENABLE_ALL & ~ENABLE_FETCH, BAR0 + DOOMPCI_ENABLE);
 
-  pci_iounmap(dev, BAR0);
   return 0;
 }
 
 static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   unsigned long err;
+  void __iomem *BAR0;
+
   printk(KERN_INFO "Probe started\n");
 
   err = pci_enable_device(dev);
@@ -47,16 +45,20 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_request_err;
   }
 
-  err = load_microcode(dev);
-  if (IS_ERR_VALUE(err)) {
-    printk(KERN_ERR "Probe error: load_microcode\n");
-    goto probe_microcode_err;
+  BAR0 = pci_iomap(dev, 0, 0);
+  if (IS_ERR(BAR0)) {
+    printk(KERN_INFO "Probe error: pci_iomap\n");
+    err = PTR_ERR(BAR0);
+    goto probe_iomap_err;
   }
+
+  pci_set_drvdata(dev, BAR0);
+  load_microcode(dev);
 
   printk(KERN_INFO "Probe finished\n");
   return 0;
 
-probe_microcode_err:
+probe_iomap_err:
   pci_release_regions(dev);
 probe_request_err:
   pci_disable_device(dev);
@@ -65,10 +67,10 @@ probe_enable_err:
 }
 
 static void remove(struct pci_dev *dev) {
-  printk(KERN_INFO "Remove started\n");
+  printk(KERN_INFO "Remove\n");
+  pci_iounmap(dev, pci_get_drvdata(dev));
   pci_release_regions(dev);
   pci_disable_device(dev);
-  printk(KERN_INFO "Remove finished\n");
 }
 
 static const struct pci_device_id pci_ids[] = {
