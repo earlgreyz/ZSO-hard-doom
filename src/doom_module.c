@@ -18,8 +18,8 @@ static int __init doom_init(void) {
 }
 
 static void __exit doom_exit(void) {
-  doom_chrdev_unregister_driver();
   doom_pci_unregister_driver();
+  doom_chrdev_unregister_driver();
 }
 
 module_init(doom_init);
