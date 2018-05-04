@@ -1,10 +1,10 @@
 #include <linux/kernel.h>
 #include <linux/pci.h>
 
-#include "doompci.h"
-#include "doompci/device.h"
-#include "doompci/doomcode.h"
-#include "doompci/registers.h"
+#include "doom_pcidrv.h"
+#include "../include/doompci.h"
+#include "../include/doomreg.h"
+#include "../include/doomcode.h"
 
 static int load_microcode(struct pci_dev *dev) {
   size_t i;
@@ -12,17 +12,17 @@ static int load_microcode(struct pci_dev *dev) {
 
   BAR0 = pci_get_drvdata(dev);
 
-  iowrite32(0, BAR0 + DOOMPCI_FE_CODE_ADDR);
+  iowrite32(0, BAR0 + DOOMREG_FE_CODE_ADDR);
 
   for (i = 0; i < ARRAY_SIZE(doomcode); ++i) {
-    iowrite32(doomcode[i], BAR0 + DOOMPCI_FE_CODE_WINDOW);
+    iowrite32(doomcode[i], BAR0 + DOOMREG_FE_CODE_WINDOW);
   }
 
-  iowrite32(RESET_ALL, BAR0 + DOOMPCI_RESET);
+  iowrite32(RESET_ALL, BAR0 + DOOMREG_RESET);
   // Initialize command iomem here (CMD_*_PTR)
-  iowrite32(INTR_ALL, BAR0 + DOOMPCI_INTR);
+  iowrite32(INTR_ALL, BAR0 + DOOMREG_INTR);
   // Enable used interrupts (INTR_ENABLE) here
-  iowrite32(ENABLE_ALL & ~ENABLE_FETCH, BAR0 + DOOMPCI_ENABLE);
+  iowrite32(ENABLE_ALL & ~ENABLE_FETCH, BAR0 + DOOMREG_ENABLE);
 
   return 0;
 }

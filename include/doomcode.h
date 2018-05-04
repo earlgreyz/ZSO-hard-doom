@@ -1,5 +1,5 @@
-#ifndef DOOMPCI_DOOMCODE_H
-#define DOOMPCI_DOOMCODE_H
+#ifndef DOOMCODE_H
+#define DOOMCODE_H
 
 const uint32_t doomcode[] = {
 	0x12000000,

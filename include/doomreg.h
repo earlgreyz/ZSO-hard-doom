@@ -1,19 +1,19 @@
-#ifndef DOOMPCI_REGISTERS_H
-#define DOOMPCI_REGISTERS_H
+#ifndef DOOMREG_H
+#define DOOMREG_H
 
-#define DOOMPCI_FENCE_LAST             0x10
-#define DOOMPCI_FENCE_WAIT             0x14
+#define DOOMREG_FENCE_LAST             0x10
+#define DOOMREG_FENCE_WAIT             0x14
 
-#define DOOMPCI_CMD_READ_PTR           0x18
-#define DOOMPCI_CMD_WRITE_PTR          0x1c
+#define DOOMREG_CMD_READ_PTR           0x18
+#define DOOMREG_CMD_WRITE_PTR          0x1c
 
-#define DOOMPCI_FE_CODE_ADDR           0x20
-#define DOOMPCI_FE_CODE_WINDOW         0x24
+#define DOOMREG_FE_CODE_ADDR           0x20
+#define DOOMREG_FE_CODE_WINDOW         0x24
 
-#define DOOMPCI_FIFO_FREE              0x30
-#define DOOMPCI_FIFO_SEND              0x30
+#define DOOMREG_FIFO_FREE              0x30
+#define DOOMREG_FIFO_SEND              0x30
 
-#define DOOMPCI_ENABLE                 0x00
+#define DOOMREG_ENABLE                 0x00
 
 #define ENABLE_ALL               (0x00003ff)
 #define ENABLE_FETCH             (1 << 0x00)
@@ -27,7 +27,7 @@
 #define ENABLE_OG                (1 << 0x08)
 #define ENABLE_SW                (1 << 0x09)
 
-#define DOOMPCI_RESET                  0x04
+#define DOOMREG_RESET                  0x04
 
 #define RESET_ALL                (0xffffffe)
 #define RESET_FIFO               (1 << 0x01)
@@ -58,8 +58,8 @@
 #define RESET_TEX_CACHE          (1 << 0x1a)
 #define RESET_FLAT_CACHE         (1 << 0x1b)
 
-#define DOOMPCI_INTR                   0x08
-#define DOOMPCI_INTR_ENABLE            0x0c
+#define DOOMREG_INTR                   0x08
+#define DOOMREG_INTR_ENABLE            0x0c
 
 #define INTR_ALL                 (0x00003ff)
 #define INTR_FENCE               (1 << 0x00)
@@ -73,7 +73,7 @@
 #define INTR_PAGE_FAULT_SURF_SRC (1 << 0x08)
 #define INTR_PAGE_FAULT_TEXTURE  (1 << 0x09)
 
-#define DOOMPCI_STATUS                 0x04
+#define DOOMREG_STATUS                 0x04
 
 #define STATUS_FETCH             (1 << 0x00)
 #define STATUS_FIFO              (1 << 0x01)
@@ -100,8 +100,8 @@
 #define STATUS_OG2SW_C           (1 << 0x16)
 #define STATUS_SW2XY             (1 << 0x17)
 
-#define DOOMPCI_FE_ERROR_CODE          0x28
-#define DOOMPCI_FE_ERROR_DATA          0x2c
+#define DOOMREG_FE_ERROR_CODE          0x28
+#define DOOMREG_FE_ERROR_DATA          0x2c
 
 #define FE_RESERVED_TYPE               0x00
 #define FE_RESERVED_BIT                0x01
@@ -116,16 +116,16 @@
 #define FE_DRAW_COLUMN_REV             0x0a
 #define FE_DRAW_SPAN_REV               0x0b
 
-#define DOOMPCI_XY_SURF_DIMS          0x200
-#define DOOMPCI_XY_DST_CMD            0x208
-#define DOOMPCI_XY_SRC_CMD            0x20c
+#define DOOMREG_XY_SURF_DIMS          0x200
+#define DOOMREG_XY_DST_CMD            0x208
+#define DOOMREG_XY_SRC_CMD            0x20c
 
-#define DOOMPCI_TLB_PT_SURF_DST       0x300
-#define DOOMPCI_TLB_PT_SURF_SRC       0x304
-#define DOOMPCI_TLB_PT_TEXTURE        0x308
+#define DOOMREG_TLB_PT_SURF_DST       0x300
+#define DOOMREG_TLB_PT_SURF_SRC       0x304
+#define DOOMREG_TLB_PT_TEXTURE        0x308
 
-#define DOOMPCI_TLB_VADDR_SURF_DST    0x320
-#define DOOMPCI_TLB_VADDR_SURF_SRC    0x324
-#define DOOMPCI_TLB_VADDR_TEXTURE     0x328
+#define DOOMREG_TLB_VADDR_SURF_DST    0x320
+#define DOOMREG_TLB_VADDR_SURF_SRC    0x324
+#define DOOMREG_TLB_VADDR_TEXTURE     0x328
 
 #endif
