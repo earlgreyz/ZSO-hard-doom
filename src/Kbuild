@@ -1,2 +1,2 @@
-obj-m := doom.o
-doom-objs := doom_module.o doom_pcidrv.o doom_chrdev.o
+obj-m := harddoom.o
+harddoom-objs := module.o pci.o chrdev.o surface.o

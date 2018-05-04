@@ -3,8 +3,8 @@
 #include <linux/device.h>
 #include <linux/cdev.h>
 
-#include "doom_pcidrv.h"
-#include "doom_chrdev.h"
+#include "pci.h"
+#include "chrdev.h"
 #include "../include/doompci.h"
 #include "../include/doomreg.h"
 #include "../include/doomcode.h"
@@ -116,7 +116,7 @@ static const struct pci_device_id pci_ids[] = {
 };
 
 static struct pci_driver pci_driver = {
-  .name = "doompci",
+  .name = "harddoom",
   .id_table = pci_ids,
   .probe = probe,
   .remove = remove,

@@ -1,5 +1,5 @@
-#ifndef DOOM_CHRDEV_H
-#define DOOM_CHRDEV_H
+#ifndef HARDDOOM_CHRDEV_H
+#define HARDDOOM_CHRDEV_H
 
 #include <linux/device.h>
 #include <linux/cdev.h>

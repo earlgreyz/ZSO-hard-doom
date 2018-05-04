@@ -1,8 +1,8 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-#include "doom_pcidrv.h"
-#include "doom_chrdev.h"
+#include "pci.h"
+#include "chrdev.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Mikolaj Walczak");
