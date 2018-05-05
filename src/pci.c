@@ -12,6 +12,8 @@
 #include "pci.h"
 #include "private.h"
 
+#define DRIVER_NAME "harddoom"
+
 static int load_microcode(struct pci_dev *dev) {
   size_t i;
   struct doom_prv *drvdata = pci_get_drvdata(dev);
@@ -47,11 +49,11 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_request_err;
   }
 
-  drvdata = (struct doom_prv *) kmalloc(sizeof(struct doom_prv), GFP_KERNEL);
+  drvdata = (struct doom_prv *) kzalloc(sizeof(struct doom_prv), GFP_KERNEL);
   if (IS_ERR(drvdata)) {
-    printk(KERN_ERR "[doompci] Probe error: kmalloc\n");
+    printk(KERN_ERR "[doompci] Probe error: kzalloc\n");
     err = PTR_ERR(drvdata);
-    goto probe_kmalloc_err;
+    goto probe_kzalloc_err;
   }
 
   pci_set_drvdata(dev, drvdata);
@@ -88,7 +90,7 @@ probe_cdev_alloc_err:
   pci_iounmap(dev, drvdata->BAR0);
 probe_iomap_err:
   kfree(drvdata);
-probe_kmalloc_err:
+probe_kzalloc_err:
   pci_release_regions(dev);
 probe_request_err:
   pci_disable_device(dev);
@@ -113,7 +115,7 @@ static const struct pci_device_id pci_ids[] = {
 };
 
 static struct pci_driver pci_driver = {
-  .name = "harddoom",
+  .name = DRIVER_NAME,
   .id_table = pci_ids,
   .probe = probe,
   .remove = remove,

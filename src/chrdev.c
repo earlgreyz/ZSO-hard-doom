@@ -9,10 +9,12 @@
 #include "chrdev.h"
 #include "surface.h"
 
+#define MODULE_NAME "harddoom"
+
 static dev_t doom_major;
 static struct class doom_class = {
   .owner = THIS_MODULE,
-	.name = "harddoom",
+	.name = MODULE_NAME,
 };
 
 static int doomdev_open(struct inode *ino, struct file *file) {
@@ -24,12 +26,6 @@ static int doomdev_release(struct inode *ino, struct file *file) {
 }
 
 static long doomdev_create_surface(struct file *file, struct doomdev_ioctl_create_surface *arg) {
-  if (arg->height > 2048 || arg->width > 2048) {
-    return -EOVERFLOW;
-  } else if (arg->height < 1 || arg->width < 64 || (arg->width & 0x7f) != 0) {
-    return -EINVAL;
-  }
-
   return doomsurf_create(arg->width, arg->height);
 }
 
@@ -89,7 +85,7 @@ void doom_device_destroy(dev_t dev) {
 int doom_chrdev_register_driver(void) {
   unsigned long err;
 
-  err = alloc_chrdev_region(&doom_major, 0, 256, "harddoom");
+  err = alloc_chrdev_region(&doom_major, 0, 256, MODULE_NAME);
   if (IS_ERR_VALUE(err)) {
 		goto init_chrdev_err;
   }

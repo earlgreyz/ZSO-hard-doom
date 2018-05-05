@@ -8,6 +8,13 @@
 #include "surface.h"
 #include "../include/doomdev.h"
 
+#define SURF_FILE_TYPE "surf"
+
+#define SURF_MAX_SIZE    2048
+#define SURF_MIN_WIDTH     64
+#define SURF_MIN_HEIGHT     1
+#define SURF_WIDTH_MASK  0x7f
+
 static long doomsurf_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *arg) {
   return -ENOTTY;
 }
@@ -78,6 +85,13 @@ long doomsurf_create(uint16_t width, uint16_t height) {
   int fd;
   struct file *file;
   void *surface;
+
+  if (width > SURF_MAX_SIZE || height > SURF_MAX_SIZE) {
+    return -EOVERFLOW;
+  } else if (width < SURF_MIN_WIDTH || (width & SURF_WIDTH_MASK) != 0
+      || height < SURF_MIN_HEIGHT) {
+    return -EINVAL;
+  }
 
   surface = vmalloc(width * height);
   if (IS_ERR(surface)) {
