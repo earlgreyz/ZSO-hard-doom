@@ -64,17 +64,18 @@ static struct file_operations doom_operations = {
   .release = doomdev_release,
 };
 
-struct cdev *doom_cdev_alloc(void) {
+struct cdev *doom_cdev_alloc(dev_t *dev) {
+  // TODO: different numbers
 	struct cdev *doom_dev = cdev_alloc();
 	if (!IS_ERR(doom_dev)) {
 		doom_dev->ops = &doom_operations;
 	}
+  *dev = doom_major;
 	return doom_dev;
 }
 
-struct device *doom_device_create(dev_t *dev, struct device *parent, struct doom_prv *drvdata) {
+struct device *doom_device_create(struct device *parent, struct doom_prv *drvdata) {
 	// TODO: different numbers and version
-  *dev = doom_major;
 	return device_create(&doom_class, parent, doom_major, drvdata, "doom0");
 }
 

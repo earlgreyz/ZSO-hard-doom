@@ -99,14 +99,20 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_init_shared_err;
   }
 
-  drvdata->cdev = doom_cdev_alloc();
+  drvdata->cdev = doom_cdev_alloc(&drvdata->dev);
   if (IS_ERR(drvdata->cdev)) {
     printk(KERN_ERR "[doompci] Probe error: doom_cdev_alloc\n");
     err = PTR_ERR(drvdata->cdev);
-    goto probe_cdev_alloc_err;
+    goto probe_cdev_err;
   }
 
-  drvdata->device = doom_device_create(&drvdata->dev, &dev->dev, drvdata->shared_data);
+  err = cdev_add(drvdata->cdev, drvdata->dev, 1);
+  if (IS_ERR_VALUE(err)) {
+    printk(KERN_INFO "[doompci] Probe error error: cdev_add\n");
+    goto probe_cdev_err;
+  }
+
+  drvdata->device = doom_device_create(&dev->dev, drvdata->shared_data);
   if (IS_ERR(drvdata->device)) {
     printk(KERN_ERR "[doompci] Probe error: device_create\n");
     err = PTR_ERR(drvdata->device);
@@ -119,7 +125,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
 
 probe_device_create_err:
   cdev_del(drvdata->cdev);
-probe_cdev_alloc_err:
+probe_cdev_err:
   pci_iounmap(dev, drvdata->shared_data->BAR0);
   kfree(drvdata->shared_data);
 probe_init_shared_err:
