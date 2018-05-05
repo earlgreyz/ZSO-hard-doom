@@ -1,12 +1,13 @@
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/ioctl.h>
-#include <linux/device.h>
 #include <linux/cdev.h>
+#include <linux/device.h>
+#include <linux/ioctl.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
+
+#include "../include/doomdev.h"
 
 #include "chrdev.h"
 #include "surface.h"
-#include "../include/doomdev.h"
 
 static dev_t doom_major;
 static struct class doom_class = {
@@ -75,13 +76,14 @@ struct cdev *doom_cdev_alloc(void) {
 	return doom_dev;
 }
 
-struct device *doom_device_create(struct device *parent) {
+struct device *doom_device_create(struct device *parent, struct doom_prv *drvdata) {
 	// TODO: different numbers and version
-	return device_create(&doom_class, parent, doom_major, NULL, "doom0");
+  drvdata->dev = doom_major;
+	return device_create(&doom_class, parent, doom_major, drvdata, "doom0");
 }
 
-void doom_device_destroy(struct device *dev) {
-	device_destroy(&doom_class, doom_major);
+void doom_device_destroy(dev_t dev) {
+	device_destroy(&doom_class, dev);
 }
 
 int doom_chrdev_register_driver(void) {

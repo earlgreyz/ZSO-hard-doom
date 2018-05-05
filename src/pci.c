@@ -1,24 +1,20 @@
+#include <linux/spinlock.h>
+#include <linux/cdev.h>
+#include <linux/device.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
-#include <linux/device.h>
-#include <linux/cdev.h>
 
-#include "pci.h"
-#include "chrdev.h"
+#include "../include/doomcode.h"
 #include "../include/doompci.h"
 #include "../include/doomreg.h"
-#include "../include/doomcode.h"
 
-struct doom_pci_drvdata {
-  void __iomem *BAR0;
-  dev_t dev;
-  struct cdev *cdev;
-  struct device *device;
-};
+#include "chrdev.h"
+#include "pci.h"
+#include "private.h"
 
 static int load_microcode(struct pci_dev *dev) {
   size_t i;
-  struct doom_pci_drvdata *drvdata = pci_get_drvdata(dev);
+  struct doom_prv *drvdata = pci_get_drvdata(dev);
 
   iowrite32(0, drvdata->BAR0 + DOOMREG_FE_CODE_ADDR);
 
@@ -37,7 +33,7 @@ static int load_microcode(struct pci_dev *dev) {
 
 static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   unsigned long err;
-  struct doom_pci_drvdata *drvdata;
+  struct doom_prv *drvdata;
 
   err = pci_enable_device(dev);
   if (IS_ERR_VALUE(err)) {
@@ -51,7 +47,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_request_err;
   }
 
-  drvdata = (struct doom_pci_drvdata *) kmalloc(sizeof(struct doom_pci_drvdata), GFP_KERNEL);
+  drvdata = (struct doom_prv *) kmalloc(sizeof(struct doom_prv), GFP_KERNEL);
   if (IS_ERR(drvdata)) {
     printk(KERN_ERR "[doompci] Probe error: kmalloc\n");
     err = PTR_ERR(drvdata);
@@ -59,6 +55,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   }
 
   pci_set_drvdata(dev, drvdata);
+  spin_lock_init(&drvdata->lock);
 
   drvdata->BAR0 = pci_iomap(dev, 0, 0);
   if (IS_ERR(drvdata->BAR0)) {
@@ -74,7 +71,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_cdev_alloc_err;
   }
 
-  drvdata->device = doom_device_create(&dev->dev);
+  drvdata->device = doom_device_create(&dev->dev, drvdata);
   if (IS_ERR(drvdata->device)) {
     printk(KERN_ERR "[doompci] Probe error: device_create\n");
     err = PTR_ERR(drvdata->device);
@@ -100,8 +97,8 @@ probe_enable_err:
 }
 
 static void remove(struct pci_dev *dev) {
-  struct doom_pci_drvdata *drvdata = pci_get_drvdata(dev);
-  doom_device_destroy(drvdata->device);
+  struct doom_prv *drvdata = pci_get_drvdata(dev);
+  doom_device_destroy(drvdata->dev);
   cdev_del(drvdata->cdev);
   pci_iounmap(dev, drvdata->BAR0);
   kfree(drvdata);

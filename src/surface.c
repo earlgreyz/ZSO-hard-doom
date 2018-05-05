@@ -1,8 +1,8 @@
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/anon_inodes.h>
 #include <linux/module.h>
 #include <linux/ioctl.h>
-#include <linux/anon_inodes.h>
 #include <linux/vmalloc.h>
 
 #include "surface.h"
