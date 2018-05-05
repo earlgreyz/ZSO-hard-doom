@@ -26,7 +26,7 @@ static int doomdev_release(struct inode *ino, struct file *file) {
 }
 
 static long doomdev_create_surface(struct file *file, struct doomdev_ioctl_create_surface *arg) {
-  return doomsurf_create(arg->width, arg->height);
+  return doomsurf_create((struct doom_prv *) file->private_data, arg->width, arg->height);
 }
 
 static long doomdev_create_texture(struct file *file, struct doomdev_ioctl_create_texture *arg) {
@@ -72,9 +72,9 @@ struct cdev *doom_cdev_alloc(void) {
 	return doom_dev;
 }
 
-struct device *doom_device_create(struct device *parent, struct doom_prv *drvdata) {
+struct device *doom_device_create(dev_t *dev, struct device *parent, struct doom_prv *drvdata) {
 	// TODO: different numbers and version
-  drvdata->dev = doom_major;
+  *dev = doom_major;
 	return device_create(&doom_class, parent, doom_major, drvdata, "doom0");
 }
 

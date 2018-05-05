@@ -128,6 +128,11 @@ struct doompci_fence {
 
 #define DOOMCMD_FENCE 0x3c
 
+struct doompci_ping {
+  uint32_t           : 26;
+  uint32_t _type     :  6;
+};
+
 #define DOOMCMD_PING_SYNC  0x3d
 #define DOOMCMD_PING_ASYNC 0x3e
 

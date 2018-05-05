@@ -3,6 +3,8 @@
 
 #include <linux/kernel.h>
 
-long doomsurf_create(uint16_t width, uint16_t height);
+#include "private.h"
+
+long doomsurf_create(struct doom_prv *drvdata, uint16_t width, uint16_t height);
 
 #endif

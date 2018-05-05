@@ -11,7 +11,7 @@ void doom_chrdev_unregister_driver(void);
 
 struct cdev *doom_cdev_alloc(void);
 
-struct device *doom_device_create(struct device *parent, struct doom_prv *drvdata);
+struct device *doom_device_create(dev_t *dev, struct device *parent, struct doom_prv *drvdata);
 void doom_device_destroy(dev_t dev);
 
 #endif

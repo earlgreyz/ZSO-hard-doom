@@ -15,6 +15,11 @@
 #define SURF_MIN_HEIGHT     1
 #define SURF_WIDTH_MASK  0x7f
 
+struct doomsurf_prv {
+  struct doom_prv   *shared_data;
+  void              *surface;
+};
+
 static long doomsurf_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *arg) {
   return -ENOTTY;
 }
@@ -67,7 +72,9 @@ ssize_t doomsurf_read(struct file *file, char __user *buf, size_t count, loff_t 
 }
 
 static int doomsurf_release(struct inode *ino, struct file *file) {
-  vfree(file->private_data);
+  struct doomsurf_prv *private_data = (struct doomsurf_prv *) file->private_data;
+  vfree(private_data->surface);
+  kfree(private_data);
   return 0;
 }
 
@@ -80,11 +87,11 @@ static struct file_operations surface_ops = {
   .release = doomsurf_release,
 };
 
-long doomsurf_create(uint16_t width, uint16_t height) {
+long doomsurf_create(struct doom_prv *drvdata, uint16_t width, uint16_t height) {
   unsigned long err;
   int fd;
   struct file *file;
-  void *surface;
+  struct doomsurf_prv *private_data;
 
   if (width > SURF_MAX_SIZE || height > SURF_MAX_SIZE) {
     return -EOVERFLOW;
@@ -93,13 +100,21 @@ long doomsurf_create(uint16_t width, uint16_t height) {
     return -EINVAL;
   }
 
-  surface = vmalloc(width * height);
-  if (IS_ERR(surface)) {
-    err = PTR_ERR(surface);
+  private_data = (struct doomsurf_prv *) kmalloc(sizeof(struct doomsurf_prv), GFP_KERNEL);
+  if (IS_ERR(private_data)) {
+    err = PTR_ERR(private_data);
+    goto create_kmalloc_err;
+  }
+
+  private_data->shared_data = drvdata;
+
+  private_data->surface = vmalloc(width * height);
+  if (IS_ERR(private_data->surface)) {
+    err = PTR_ERR(private_data->surface);
     goto create_vmalloc_err;
   }
 
-  fd = anon_inode_getfd(SURF_FILE_TYPE, &surface_ops, surface, O_RDONLY | O_CLOEXEC);
+  fd = anon_inode_getfd(SURF_FILE_TYPE, &surface_ops, private_data, O_RDONLY | O_CLOEXEC);
   if (IS_ERR_VALUE((unsigned long) fd)) {
     err = (unsigned long) fd;
     goto create_getfd_err;
@@ -118,7 +133,9 @@ long doomsurf_create(uint16_t width, uint16_t height) {
 create_getfile_err:
   // close(fd); // TODO: should we close it here or not?
 create_getfd_err:
-  vfree(surface);
+  vfree(private_data->surface);
 create_vmalloc_err:
+  kfree(private_data);
+create_kmalloc_err:
   return err;
 }
