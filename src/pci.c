@@ -78,20 +78,20 @@ static int init_device(struct pci_dev *dev, struct doom_pci_prv *drvdata) {
 
   drvdata->cdev = doom_cdev_alloc(&drvdata->dev);
   if (IS_ERR(drvdata->cdev)) {
-    printk(KERN_ERR "[doompci] Init Private error: doom_cdev_alloc\n");
+    printk(KERN_ERR "[doompci] Init Device error: doom_cdev_alloc\n");
     err = PTR_ERR(drvdata->cdev);
     goto init_device_cdev_err;
   }
 
   err = cdev_add(drvdata->cdev, drvdata->dev, 1);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_INFO "[doompci] Init Private error error: cdev_add\n");
+    printk(KERN_INFO "[doompci] Init Device error error: cdev_add\n");
     goto init_device_add_err;
   }
 
   drvdata->device = doom_device_create(&dev->dev, drvdata->shared_data);
   if (IS_ERR(drvdata->device)) {
-    printk(KERN_ERR "[doompci] Init Private error: device_create\n");
+    printk(KERN_ERR "[doompci] Init Device error: device_create\n");
     err = PTR_ERR(drvdata->device);
     goto init_device_create_err;
   }

@@ -14,15 +14,15 @@
 static dev_t doom_major;
 static struct class doom_class = {
   .owner = THIS_MODULE,
-	.name = MODULE_NAME,
+  .name = MODULE_NAME,
 };
 
 static int doomdev_open(struct inode *ino, struct file *file) {
-	return 0;
+  return 0;
 }
 
 static int doomdev_release(struct inode *ino, struct file *file) {
-	return 0;
+  return 0;
 }
 
 static long doomdev_create_surface(struct file *file, struct doomdev_ioctl_create_surface *arg) {
@@ -59,28 +59,29 @@ static long doomdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 static struct file_operations doom_operations = {
   .owner = THIS_MODULE,
   .unlocked_ioctl = doomdev_ioctl,
-	.compat_ioctl = doomdev_ioctl,
+  .compat_ioctl = doomdev_ioctl,
   .open = doomdev_open,
   .release = doomdev_release,
 };
 
 struct cdev *doom_cdev_alloc(dev_t *dev) {
   // TODO: different numbers
-	struct cdev *doom_dev = cdev_alloc();
-	if (!IS_ERR(doom_dev)) {
-		doom_dev->ops = &doom_operations;
-	}
+  struct cdev *doom_dev = cdev_alloc();
+  if (!IS_ERR(doom_dev)) {
+    doom_dev->ops = &doom_operations;
+    doom_dev->owner = THIS_MODULE;
+  }
   *dev = doom_major;
-	return doom_dev;
+  return doom_dev;
 }
 
 struct device *doom_device_create(struct device *parent, struct doom_prv *drvdata) {
-	// TODO: different numbers and version
-	return device_create(&doom_class, parent, doom_major, drvdata, "doom0");
+  // TODO: different numbers and version
+  return device_create(&doom_class, parent, doom_major, drvdata, "doom%d", 0);
 }
 
 void doom_device_destroy(dev_t dev) {
-	device_destroy(&doom_class, dev);
+  device_destroy(&doom_class, dev);
 }
 
 int doom_chrdev_register_driver(void) {
@@ -88,23 +89,23 @@ int doom_chrdev_register_driver(void) {
 
   err = alloc_chrdev_region(&doom_major, 0, 256, MODULE_NAME);
   if (IS_ERR_VALUE(err)) {
-		goto init_chrdev_err;
+  goto init_chrdev_err;
   }
 
   err = class_register(&doom_class);
   if (IS_ERR_VALUE(err)) {
-		goto init_class_err;
+  goto init_class_err;
   }
 
   return 0;
 
 init_class_err:
-	unregister_chrdev_region(doom_major, 8);
+  unregister_chrdev_region(doom_major, 8);
 init_chrdev_err:
   return err;
 }
 
 void doom_chrdev_unregister_driver(void) {
-	class_unregister(&doom_class);
+  class_unregister(&doom_class);
   unregister_chrdev_region(doom_major, 8);
 }
