@@ -26,8 +26,8 @@ int main(int argc, char *argv[]) {
     errors++;
   } else {
     fprintf(stderr, "Surface successfully created\n");
+    close(surface_fd);
   }
-  close(surface_fd);
 
   surface_params = (struct doomdev_ioctl_create_surface){
     .width = 2048 + 64,
@@ -38,13 +38,13 @@ int main(int argc, char *argv[]) {
   if (surface_fd > 0) {
     fprintf(stderr, "Surface width overflow not detected\n");
     errors++;
+    close(surface_fd);
   } else if (errno != EOVERFLOW) {
     fprintf(stderr, "Surface width overflow detected, but returned invalid error code\n");
     errors++;
   } else {
     fprintf(stderr, "Surface width overflow successfully detected\n");
   }
-  close(surface_fd);
 
   surface_params = (struct doomdev_ioctl_create_surface){
     .width = 1024,
@@ -55,13 +55,13 @@ int main(int argc, char *argv[]) {
   if (surface_fd > 0) {
     fprintf(stderr, "Surface height overflow not detected\n");
     errors++;
+    close(surface_fd);
   } else if (errno != EOVERFLOW) {
     fprintf(stderr, "Surface height overflow detected, but returned invalid error code\n");
     errors++;
   } else {
     fprintf(stderr, "Surface height overflow successfully detected\n");
   }
-  close(surface_fd);
 
   surface_params = (struct doomdev_ioctl_create_surface){
     .width = 1020,
@@ -72,13 +72,13 @@ int main(int argc, char *argv[]) {
   if (surface_fd > 0) {
     fprintf(stderr, "Surface width alignment error not detected\n");
     errors++;
+    close(surface_fd);
   } else if (errno != EINVAL) {
     fprintf(stderr, "Surface width alignment error detected, but returned invalid error code\n");
     errors++;
   } else {
     fprintf(stderr, "Surface width alignment error successfully detected\n");
   }
-  close(surface_fd);
 
   surface_params = (struct doomdev_ioctl_create_surface){
     .width = 60,
@@ -89,13 +89,13 @@ int main(int argc, char *argv[]) {
   if (surface_fd > 0) {
     fprintf(stderr, "Surface width underflow error not detected\n");
     errors++;
+    close(surface_fd);
   } else if (errno != EINVAL) {
     fprintf(stderr, "Surface width underflow error detected, but returned invalid error code\n");
     errors++;
   } else {
     fprintf(stderr, "Surface width underflow error successfully detected\n");
   }
-  close(surface_fd);
 
   surface_params = (struct doomdev_ioctl_create_surface){
     .width = 1020,
@@ -106,16 +106,15 @@ int main(int argc, char *argv[]) {
   if (surface_fd > 0) {
     fprintf(stderr, "Surface height underflow error not detected\n");
     errors++;
+    close(surface_fd);
   } else if (errno != EINVAL) {
     fprintf(stderr, "Surface height underflow error detected, but returned invalid error code\n");
     errors++;
   } else {
     fprintf(stderr, "Surface height underflow error detected\n");
   }
-  close(surface_fd);
 
   close(doom_fd);
-
   if (errors > 0) {
     fprintf(stderr, "%d tests failed\n", errors);
     return 1;
