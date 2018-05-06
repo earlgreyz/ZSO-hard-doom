@@ -1,78 +1,77 @@
+#include <linux/anon_inodes.h>
 #include <linux/file.h>
 #include <linux/fs.h>
-#include <linux/anon_inodes.h>
-#include <linux/module.h>
 #include <linux/ioctl.h>
+#include <linux/module.h>
 #include <linux/vmalloc.h>
 
 #include "surface.h"
-#include "../include/doomdev.h"
 
-#define SURF_FILE_TYPE "surf"
+#define SURFACE_FILE_TYPE "surface"
 
-#define SURF_MAX_SIZE    2048
-#define SURF_MIN_WIDTH     64
-#define SURF_MIN_HEIGHT     1
-#define SURF_WIDTH_MASK  0x7f
+#define SURFACE_MAX_SIZE    2048
+#define SURFACE_MIN_WIDTH     64
+#define SURFACE_MIN_HEIGHT     1
+#define SURFACE_WIDTH_MASK  0x7f
 
-struct doomsurf_prv {
+struct surface_prv {
   struct doom_prv   *shared_data;
   void              *surface;
 };
 
-static long doomsurf_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *arg) {
+static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
   return -ENOTTY;
 }
 
-static long doomsurf_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects *arg) {
+static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects *args) {
   return -ENOTTY;
 }
 
-static long doomsurf_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines *arg) {
+static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines *args) {
   return -ENOTTY;
 }
 
-static long doomsurf_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background *arg) {
+static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background *args) {
   return -ENOTTY;
 }
 
-static long doomsurf_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns *arg) {
+static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns *args) {
   return -ENOTTY;
 }
 
-static long doomsurf_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans *arg) {
+static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans *args) {
   return -ENOTTY;
 }
 
-static long doomsurf_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+static long surface_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
   switch (cmd) {
     case DOOMDEV_SURF_IOCTL_COPY_RECTS:
-      return doomsurf_copy_rects(file, (struct doomdev_surf_ioctl_copy_rects *) arg);
+      return surface_copy_rects(file, (struct doomdev_surf_ioctl_copy_rects *) arg);
     case DOOMDEV_SURF_IOCTL_FILL_RECTS:
-      return doomsurf_fill_rects(file, (struct doomdev_surf_ioctl_fill_rects *) arg);
+      return surface_fill_rects(file, (struct doomdev_surf_ioctl_fill_rects *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_LINES:
-      return doomsurf_draw_lines(file, (struct doomdev_surf_ioctl_draw_lines *) arg);
+      return surface_draw_lines(file, (struct doomdev_surf_ioctl_draw_lines *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_BACKGROUND:
-      return doomsurf_draw_background(file, (struct doomdev_surf_ioctl_draw_background *) arg);
+      return surface_draw_background(file, (struct doomdev_surf_ioctl_draw_background *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_COLUMNS:
-      return doomsurf_draw_columns(file, (struct doomdev_surf_ioctl_draw_columns *) arg);
+      return surface_draw_columns(file, (struct doomdev_surf_ioctl_draw_columns *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_SPANS:
-      return doomsurf_draw_spans(file, (struct doomdev_surf_ioctl_draw_spans *) arg);
+      return surface_draw_spans(file, (struct doomdev_surf_ioctl_draw_spans *) arg);
     default:
       return -ENOTTY;
   }
 }
 
-static loff_t doomsurf_llseek(struct file *file, loff_t filepos, int whence) {
+static loff_t surface_llseek(struct file *file, loff_t filepos, int whence) {
   return -ENOTTY;
 }
 
-ssize_t doomsurf_read(struct file *file, char __user *buf, size_t count, loff_t *filepos) {
+ssize_t surface_read(struct file *file, char __user *buf, size_t count, loff_t *filepos) {
   return -ENOTTY;
 }
 
-static int doomsurf_release(struct inode *ino, struct file *file) {
-  struct doomsurf_prv *private_data = (struct doomsurf_prv *) file->private_data;
+static int surface_release(struct inode *ino, struct file *file) {
+  struct surface_prv *private_data = (struct surface_prv *) file->private_data;
   vfree(private_data->surface);
   kfree(private_data);
   return 0;
@@ -80,27 +79,28 @@ static int doomsurf_release(struct inode *ino, struct file *file) {
 
 static struct file_operations surface_ops = {
   .owner = THIS_MODULE,
-  .unlocked_ioctl = doomsurf_ioctl,
-	.compat_ioctl = doomsurf_ioctl,
-  .llseek = doomsurf_llseek,
-  .read = doomsurf_read,
-  .release = doomsurf_release,
+  .unlocked_ioctl = surface_ioctl,
+	.compat_ioctl = surface_ioctl,
+  .llseek = surface_llseek,
+  .read = surface_read,
+  .release = surface_release,
 };
 
-long doomsurf_create(struct doom_prv *drvdata, uint16_t width, uint16_t height) {
+long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface *args) {
   unsigned long err;
-  int fd;
-  struct fd fd_struct;
-  struct doomsurf_prv *private_data;
+  struct surface_prv *private_data;
+  int surface_fd;
+  struct fd fd;
 
-  if (width > SURF_MAX_SIZE || height > SURF_MAX_SIZE) {
+  if (args->width > SURFACE_MAX_SIZE || args->height > SURFACE_MAX_SIZE) {
     return -EOVERFLOW;
-  } else if (width < SURF_MIN_WIDTH || (width & SURF_WIDTH_MASK) != 0
-      || height < SURF_MIN_HEIGHT) {
+  } else if (args->width < SURFACE_MIN_WIDTH
+      || (args->width & SURFACE_WIDTH_MASK) != 0
+      || args->height < SURFACE_MIN_HEIGHT) {
     return -EINVAL;
   }
 
-  private_data = (struct doomsurf_prv *) kmalloc(sizeof(struct doomsurf_prv), GFP_KERNEL);
+  private_data = (struct surface_prv *) kmalloc(sizeof(struct surface_prv), GFP_KERNEL);
   if (IS_ERR(private_data)) {
     err = PTR_ERR(private_data);
     goto create_kmalloc_err;
@@ -108,22 +108,23 @@ long doomsurf_create(struct doom_prv *drvdata, uint16_t width, uint16_t height) 
 
   private_data->shared_data = drvdata;
 
-  private_data->surface = vmalloc(width * height);
+  private_data->surface = vmalloc(args->width * args->height);
   if (IS_ERR(private_data->surface)) {
     err = PTR_ERR(private_data->surface);
     goto create_vmalloc_err;
   }
 
-  fd = anon_inode_getfd(SURF_FILE_TYPE, &surface_ops, private_data, O_RDONLY | O_CLOEXEC);
-  if (IS_ERR_VALUE((unsigned long) fd)) {
-    err = (unsigned long) fd;
+  surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, private_data, O_RDONLY | O_CLOEXEC);
+
+  if (IS_ERR_VALUE((unsigned long) surface_fd)) {
+    err = (unsigned long) surface_fd;
     goto create_getfd_err;
   }
 
-  fd_struct = fdget(fd);
-  fd_struct.file->f_mode = FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE;
+  fd = fdget(surface_fd);
+  fd.file->f_mode = FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE;
 
-  return fd;
+  return surface_fd;
 
 create_getfd_err:
   vfree(private_data->surface);

@@ -26,10 +26,6 @@ static int doomdev_release(struct inode *ino, struct file *file) {
   return 0;
 }
 
-static long doomdev_create_surface(struct file *file, struct doomdev_ioctl_create_surface *arg) {
-  return doomsurf_create((struct doom_prv *) file->private_data, arg->width, arg->height);
-}
-
 static long doomdev_create_flat(struct file *file, struct doomdev_ioctl_create_flat *arg) {
   return -ENOTTY;
 }
@@ -43,7 +39,7 @@ static long doomdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 
   switch (cmd) {
     case DOOMDEV_IOCTL_CREATE_SURFACE:
-      return doomdev_create_surface(file, (struct doomdev_ioctl_create_surface *) arg);
+      return surface_create(private_data, (struct doomdev_ioctl_create_surface *) arg);
     case DOOMDEV_IOCTL_CREATE_TEXTURE:
       return texture_create(private_data, (struct doomdev_ioctl_create_texture *) arg);
     case DOOMDEV_IOCTL_CREATE_FLAT:

@@ -4,7 +4,8 @@
 #include <linux/kernel.h>
 
 #include "private.h"
+#include "../include/doomdev.h"
 
-long doomsurf_create(struct doom_prv *drvdata, uint16_t width, uint16_t height);
+long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface *args);
 
 #endif
