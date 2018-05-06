@@ -114,6 +114,8 @@ int main(int argc, char *argv[]) {
   }
   close(surface_fd);
 
+  close(doom_fd);
+
   if (errors > 0) {
     fprintf(stderr, "%d tests failed\n", errors);
     return 1;
