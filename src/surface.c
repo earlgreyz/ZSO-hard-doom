@@ -90,7 +90,7 @@ static struct file_operations surface_ops = {
 long doomsurf_create(struct doom_prv *drvdata, uint16_t width, uint16_t height) {
   unsigned long err;
   int fd;
-  struct file *file;
+  struct fd fd_struct;
   struct doomsurf_prv *private_data;
 
   if (width > SURF_MAX_SIZE || height > SURF_MAX_SIZE) {
@@ -120,18 +120,11 @@ long doomsurf_create(struct doom_prv *drvdata, uint16_t width, uint16_t height) 
     goto create_getfd_err;
   }
 
-  file = fget(fd);
-  if (IS_ERR(file)) {
-    err = PTR_ERR(file);
-    goto create_getfile_err;
-  }
-
-  file->f_mode = FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE;
+  fd_struct = fdget(fd);
+  fd_struct.file->f_mode = FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE;
 
   return fd;
 
-create_getfile_err:
-  // close(fd); // TODO: should we close it here or not?
 create_getfd_err:
   vfree(private_data->surface);
 create_vmalloc_err:
