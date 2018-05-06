@@ -8,6 +8,7 @@
 
 #include "chrdev.h"
 #include "surface.h"
+#include "texture.h"
 
 #define MODULE_NAME "harddoom"
 
@@ -29,10 +30,6 @@ static long doomdev_create_surface(struct file *file, struct doomdev_ioctl_creat
   return doomsurf_create((struct doom_prv *) file->private_data, arg->width, arg->height);
 }
 
-static long doomdev_create_texture(struct file *file, struct doomdev_ioctl_create_texture *arg) {
-  return -ENOTTY;
-}
-
 static long doomdev_create_flat(struct file *file, struct doomdev_ioctl_create_flat *arg) {
   return -ENOTTY;
 }
@@ -42,11 +39,13 @@ static long doomdev_create_colormaps(struct file *file, struct doomdev_ioctl_cre
 }
 
 static long doomdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
+  struct doom_prv *private_data = file->private_data;
+
   switch (cmd) {
     case DOOMDEV_IOCTL_CREATE_SURFACE:
       return doomdev_create_surface(file, (struct doomdev_ioctl_create_surface *) arg);
     case DOOMDEV_IOCTL_CREATE_TEXTURE:
-      return doomdev_create_texture(file, (struct doomdev_ioctl_create_texture *) arg);
+      return texture_create(private_data, (struct doomdev_ioctl_create_texture *) arg);
     case DOOMDEV_IOCTL_CREATE_FLAT:
       return doomdev_create_flat(file, (struct doomdev_ioctl_create_flat *) arg);
     case DOOMDEV_IOCTL_CREATE_COLORMAPS:
