@@ -5,6 +5,7 @@
 #include <linux/module.h>
 #include <linux/vmalloc.h>
 
+#include "pt.h"
 #include "surface.h"
 
 #define SURFACE_FILE_TYPE "surface"
@@ -17,6 +18,9 @@
 struct surface_prv {
   struct doom_prv   *shared_data;
   void              *surface;
+  struct pt_entry   *pt;
+  uint32_t          width;
+  uint32_t          height;
 };
 
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
@@ -86,8 +90,32 @@ static struct file_operations surface_ops = {
   .release = surface_release,
 };
 
+static int allocate_surface(struct surface_prv *private_data, size_t size) {
+  long pt_len;
+  size_t pt_size;
+  size_t aligned_size = ALIGN(size, PT_ALIGNMENT);
+
+  printk(KERN_DEBUG "[doom_surface] %lu aligned to %lu\n", size, aligned_size);
+
+  pt_len = pt_length(size);
+  if (IS_ERR_VALUE(pt_len)) {
+    return pt_len;
+  }
+
+  pt_size = pt_len * sizeof(struct pt_entry);
+  private_data->surface = vmalloc_32(aligned_size + pt_size);
+  if (IS_ERR(private_data->surface)) {
+    return PTR_ERR(private_data->surface);
+  }
+
+  private_data->pt = (struct pt_entry *) private_data->surface + aligned_size;
+  pt_fill(private_data->surface, private_data->pt, pt_len);
+  return 0;
+}
+
 long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface *args) {
   unsigned long err;
+
   struct surface_prv *private_data;
   int surface_fd;
   struct fd fd;
@@ -102,21 +130,26 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
 
   private_data = (struct surface_prv *) kmalloc(sizeof(struct surface_prv), GFP_KERNEL);
   if (IS_ERR(private_data)) {
+    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate private\n");
     err = PTR_ERR(private_data);
     goto create_kmalloc_err;
   }
 
-  private_data->shared_data = drvdata;
+  *private_data = (struct surface_prv){
+    .shared_data = drvdata,
+    .width = args->width,
+    .height = args->height,
+  };
 
-  private_data->surface = vmalloc(args->width * args->height);
-  if (IS_ERR(private_data->surface)) {
-    err = PTR_ERR(private_data->surface);
-    goto create_vmalloc_err;
+  err = allocate_surface(private_data, args->width * args->height);
+  if (IS_ERR_VALUE(err)) {
+    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate surface\n");
+    goto create_allocate_err;
   }
 
   surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, private_data, O_RDONLY | O_CLOEXEC);
-
   if (IS_ERR_VALUE((unsigned long) surface_fd)) {
+    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate a descriptor\n");
     err = (unsigned long) surface_fd;
     goto create_getfd_err;
   }
@@ -128,7 +161,7 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
 
 create_getfd_err:
   vfree(private_data->surface);
-create_vmalloc_err:
+create_allocate_err:
   kfree(private_data);
 create_kmalloc_err:
   return err;
