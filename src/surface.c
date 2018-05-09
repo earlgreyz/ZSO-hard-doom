@@ -108,7 +108,7 @@ static int allocate_surface(struct surface_prv *private_data, size_t size) {
     return PTR_ERR(private_data->surface);
   }
 
-  private_data->pt = (struct pt_entry *) private_data->surface + aligned_size;
+  private_data->pt = (struct pt_entry *) (private_data->surface + aligned_size);
   pt_fill(private_data->surface, private_data->pt, pt_len);
   return 0;
 }
@@ -149,7 +149,7 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
 
   surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, private_data, O_RDONLY | O_CLOEXEC);
   if (IS_ERR_VALUE((unsigned long) surface_fd)) {
-    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate a descriptor\n");
+    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate a fd\n");
     err = (unsigned long) surface_fd;
     goto create_getfd_err;
   }

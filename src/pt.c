@@ -18,8 +18,8 @@ long pt_length(uint32_t buffer_size) {
 }
 
 void pt_fill(void *buffer, struct pt_entry *pt, int n) {
-  /*int i;
+  size_t i;
   for (i = 0; i < n; ++i) {
-    *(uint32_t *)(pt + i) = MK_PT_ENTRY(buffer + i * PAGE_SIZE);
-  }*/
+    *(uint32_t *)(pt + i) = MK_PT_ENTRY(buffer + i * DOOM_PAGE_SIZE);
+  }
 }
