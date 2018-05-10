@@ -20,6 +20,7 @@ static struct class doom_class = {
 };
 
 static int doomdev_open(struct inode *ino, struct file *file) {
+  file->private_data = ino->i_private;
   return 0;
 }
 
@@ -32,15 +33,15 @@ static long doomdev_create_colormaps(struct file *file, struct doomdev_ioctl_cre
 }
 
 static long doomdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
-  struct doom_prv *private_data = file->private_data;
+  struct doom_prv *prv = file->private_data;
 
   switch (cmd) {
     case DOOMDEV_IOCTL_CREATE_SURFACE:
-      return surface_create(private_data, (struct doomdev_ioctl_create_surface *) arg);
+      return surface_create(prv, (struct doomdev_ioctl_create_surface *) arg);
     case DOOMDEV_IOCTL_CREATE_TEXTURE:
-      return texture_create(private_data, (struct doomdev_ioctl_create_texture *) arg);
+      return texture_create(prv, (struct doomdev_ioctl_create_texture *) arg);
     case DOOMDEV_IOCTL_CREATE_FLAT:
-      return flat_create(private_data, (struct doomdev_ioctl_create_flat *) arg);
+      return flat_create(prv, (struct doomdev_ioctl_create_flat *) arg);
     case DOOMDEV_IOCTL_CREATE_COLORMAPS:
       return doomdev_create_colormaps(file, (struct doomdev_ioctl_create_colormaps *) arg);
     default:

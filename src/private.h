@@ -8,6 +8,7 @@
 
 struct doom_prv {
   void __iomem    *BAR0;
+  struct device   *pci;
   spinlock_t      lock;
 };
 

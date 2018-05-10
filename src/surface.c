@@ -16,11 +16,17 @@
 #define SURFACE_WIDTH_MASK  0x7f
 
 struct surface_prv {
-  struct doom_prv   *shared_data;
-  void              *surface;
-  struct pt_entry   *pt;
+  struct doom_prv   *drvdata;
+
   uint32_t          width;
   uint32_t          height;
+
+  size_t            size;
+  void              *surface;
+  struct pt_entry   *pt;
+
+  dma_addr_t        surface_dma;
+  dma_addr_t        pt_dma;
 };
 
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
@@ -75,9 +81,9 @@ ssize_t surface_read(struct file *file, char __user *buf, size_t count, loff_t *
 }
 
 static int surface_release(struct inode *ino, struct file *file) {
-  struct surface_prv *private_data = (struct surface_prv *) file->private_data;
-  vfree(private_data->surface);
-  kfree(private_data);
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+  dma_free_coherent(prv->drvdata->pci, prv->size, prv->surface, prv->surface_dma);
+  kfree(prv);
   return 0;
 }
 
@@ -90,12 +96,10 @@ static struct file_operations surface_ops = {
   .release = surface_release,
 };
 
-static int allocate_surface(struct surface_prv *private_data, size_t size) {
+static int allocate_surface(struct surface_prv *prv, size_t size) {
   long pt_len;
   size_t pt_size;
   size_t aligned_size = ALIGN(size, PT_ALIGNMENT);
-
-  printk(KERN_DEBUG "[doom_surface] %lu aligned to %lu\n", size, aligned_size);
 
   pt_len = pt_length(size);
   if (IS_ERR_VALUE(pt_len)) {
@@ -103,20 +107,23 @@ static int allocate_surface(struct surface_prv *private_data, size_t size) {
   }
 
   pt_size = pt_len * sizeof(struct pt_entry);
-  private_data->surface = vmalloc_32(aligned_size + pt_size);
-  if (IS_ERR(private_data->surface)) {
-    return PTR_ERR(private_data->surface);
+  prv->size = aligned_size + pt_size;
+
+  prv->surface = dma_alloc_coherent(prv->drvdata->pci, prv->size, &prv->surface_dma, GFP_KERNEL);
+  if (IS_ERR(prv->surface)) {
+    return PTR_ERR(prv->surface);
   }
 
-  private_data->pt = (struct pt_entry *) (private_data->surface + aligned_size);
-  pt_fill(private_data->surface, private_data->pt, pt_len);
+  prv->pt = (struct pt_entry *) (prv->surface + aligned_size);
+  prv->pt_dma = prv->surface_dma + aligned_size;
+  pt_fill(prv->surface, prv->pt, pt_len);
   return 0;
 }
 
 long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface *args) {
   unsigned long err;
 
-  struct surface_prv *private_data;
+  struct surface_prv *prv;
   int surface_fd;
   struct fd fd;
 
@@ -128,26 +135,26 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
     return -EINVAL;
   }
 
-  private_data = (struct surface_prv *) kmalloc(sizeof(struct surface_prv), GFP_KERNEL);
-  if (IS_ERR(private_data)) {
+  prv = (struct surface_prv *) kmalloc(sizeof(struct surface_prv), GFP_KERNEL);
+  if (IS_ERR(prv)) {
     printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate private\n");
-    err = PTR_ERR(private_data);
+    err = PTR_ERR(prv);
     goto create_kmalloc_err;
   }
 
-  *private_data = (struct surface_prv){
-    .shared_data = drvdata,
+  *prv = (struct surface_prv){
+    .drvdata = drvdata,
     .width = args->width,
     .height = args->height,
   };
 
-  err = allocate_surface(private_data, args->width * args->height);
+  err = allocate_surface(prv, args->width * args->height);
   if (IS_ERR_VALUE(err)) {
     printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate surface\n");
     goto create_allocate_err;
   }
 
-  surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, private_data, O_RDONLY | O_CLOEXEC);
+  surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, prv, O_RDONLY | O_CLOEXEC);
   if (IS_ERR_VALUE((unsigned long) surface_fd)) {
     printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate a fd\n");
     err = (unsigned long) surface_fd;
@@ -160,9 +167,9 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
   return surface_fd;
 
 create_getfd_err:
-  vfree(private_data->surface);
+  dma_free_coherent(prv->drvdata->pci, prv->size, prv->surface, prv->surface_dma);
 create_allocate_err:
-  kfree(private_data);
+  kfree(prv);
 create_kmalloc_err:
   return err;
 }
