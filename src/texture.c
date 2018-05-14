@@ -61,7 +61,7 @@ static int allocate_texture(struct texture_prv *prv, size_t size) {
 
   prv->pt = (struct pt_entry *) (prv->texture + aligned_size);
   prv->pt_dma = prv->texture_dma + aligned_size;
-  pt_fill(prv->texture, prv->pt, pt_len);
+  pt_fill(prv->texture_dma, prv->pt, pt_len);
   return 0;
 }
 

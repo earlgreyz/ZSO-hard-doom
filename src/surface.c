@@ -116,7 +116,7 @@ static int allocate_surface(struct surface_prv *prv, size_t size) {
 
   prv->pt = (struct pt_entry *) (prv->surface + aligned_size);
   prv->pt_dma = prv->surface_dma + aligned_size;
-  pt_fill(prv->surface, prv->pt, pt_len);
+  pt_fill(prv->surface_dma, prv->pt, pt_len);
   return 0;
 }
 

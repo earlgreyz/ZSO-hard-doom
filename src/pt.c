@@ -2,7 +2,7 @@
 
 #include <linux/errno.h>
 
-#define MK_PT_ENTRY(addr) (((uint32_t)(uint64_t)(addr)) & 0xfffff001)
+#define MK_PT_ENTRY(addr) (((uint32_t) addr) & 0xfffff001)
 
 long pt_length(uint32_t buffer_size) {
   int len = buffer_size / DOOM_PAGE_SIZE;
@@ -17,7 +17,7 @@ long pt_length(uint32_t buffer_size) {
   return len;
 }
 
-void pt_fill(void *buffer, struct pt_entry *pt, int n) {
+void pt_fill(dma_addr_t buffer, struct pt_entry *pt, int n) {
   size_t i;
   for (i = 0; i < n; ++i) {
     *(uint32_t *)(pt + i) = MK_PT_ENTRY(buffer + i * DOOM_PAGE_SIZE);

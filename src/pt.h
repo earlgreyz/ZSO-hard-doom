@@ -17,6 +17,6 @@ struct pt_entry {
 long pt_length(uint32_t buffer_size);
 
 // Fills a page table for a given buffer.
-void pt_fill(void *buffer, struct pt_entry *pt, int n);
+void pt_fill(dma_addr_t buffer, struct pt_entry *pt, int n);
 
 #endif
