@@ -9,7 +9,11 @@
 struct doom_prv {
   void __iomem    *BAR0;
   struct device   *pci;
-  spinlock_t      lock;
+
+  dma_addr_t      surface;
+
+  spinlock_t      fifo_lock;
+  struct mutex    cmd_mutex;
 };
 
 #endif

@@ -1,6 +1,7 @@
 #include <linux/spinlock.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
+#include <linux/mutex.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
 
@@ -59,7 +60,9 @@ static int init_drvdata(struct pci_dev *dev, struct doom_prv **drvdata) {
   }
 
   data->pci = &dev->dev;
-  spin_lock_init(&data->lock);
+
+  spin_lock_init(&data->fifo_lock);
+  mutex_init(&data->cmd_mutex);
   *drvdata = data;
   return 0;
 

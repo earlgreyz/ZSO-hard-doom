@@ -6,6 +6,9 @@
 #include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 
+#include "../include/harddoom.h"
+
+#include "cmd.h"
 #include "pt.h"
 #include "surface.h"
 
@@ -30,12 +33,65 @@ struct surface_prv {
   dma_addr_t        pt_dma;
 };
 
+static long surface_select(struct surface_prv *prv) {
+  unsigned long err;
+
+  if (prv->drvdata->surface == prv->surface_dma) {
+    return 0;
+  }
+
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_SRC_PT(prv->pt_dma)))) {
+    goto surface_surf_src_pt_err;
+  }
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_DIMS(prv->width, prv->height)))) {
+    goto surface_surf_dims_err;
+  }
+
+  return 0;
+
+surface_surf_dims_err:
+  prv->drvdata->surface = -1;
+surface_surf_src_pt_err:
+  return -EFAULT;
+}
+
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
   return -ENOTTY;
 }
 
 static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects *args) {
-  return -ENOTTY;
+  unsigned long err;
+
+  long i;
+  struct doomdev_fill_rect *rect;
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  mutex_lock(&prv->drvdata->cmd_mutex);
+  if ((err = surface_select(prv))) {
+    goto fill_rects_surface_err;
+  }
+
+  for (i = 0; i < args->rects_num; ++i) {
+    rect = (struct doomdev_fill_rect *) args->rects_ptr + i;
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(rect->color)))) {
+      goto fill_rects_rect_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y)))) {
+      goto fill_rects_rect_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_RECT(rect->width, rect->height)))) {
+      goto fill_rects_rect_err;
+    }
+  }
+
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return 0;
+
+fill_rects_rect_err:
+  err = i == 0? -EFAULT: i;
+fill_rects_surface_err:
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return err;
 }
 
 static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines *args) {
