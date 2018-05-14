@@ -3,6 +3,7 @@
 #include <linux/fs.h>
 #include <linux/ioctl.h>
 #include <linux/module.h>
+#include <linux/uaccess.h>
 #include <linux/vmalloc.h>
 
 #include "pt.h"
@@ -73,11 +74,33 @@ static long surface_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 }
 
 static loff_t surface_llseek(struct file *file, loff_t filepos, int whence) {
-  return -ENOTTY;
+  file->f_pos = filepos;
+  return 0;
 }
 
-ssize_t surface_read(struct file *file, char __user *buf, size_t count, loff_t *filepos) {
-  return -ENOTTY;
+static ssize_t surface_read(struct file *file, char __user *buf, size_t count, loff_t *filepos) {
+  unsigned long err;
+
+  size_t size, copied;
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  size = prv->width * prv->height;
+  if (*filepos > size || *filepos < 0) {
+    return 0;
+  }
+
+  if (count > size - *filepos) {
+    count = size - *filepos;
+  }
+
+  err = copy_to_user(buf, prv->surface + *filepos, count);
+  copied = count - err;
+  if (copied == 0) {
+    return -EFAULT;
+  }
+
+  *filepos = *filepos + copied;
+  return copied;
 }
 
 static int surface_release(struct inode *ino, struct file *file) {
