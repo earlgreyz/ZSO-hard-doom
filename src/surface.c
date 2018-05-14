@@ -95,7 +95,41 @@ fill_rects_surface_err:
 }
 
 static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines *args) {
-  return -ENOTTY;
+  unsigned long err;
+
+  long i;
+  struct doomdev_line *line;
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  mutex_lock(&prv->drvdata->cmd_mutex);
+  if ((err = surface_select(prv))) {
+    goto fill_lines_surface_err;
+  }
+
+  for (i = 0; i < args->lines_num; ++i) {
+    line = (struct doomdev_line *) args->lines_ptr + i;
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line->color)))) {
+      goto fill_lines_line_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line->pos_a_x, line->pos_a_y)))) {
+      goto fill_lines_line_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line->pos_b_x, line->pos_b_y)))) {
+      goto fill_lines_line_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_LINE))) {
+      goto fill_lines_line_err;
+    }
+  }
+
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return 0;
+
+fill_lines_line_err:
+  err = i == 0? -EFAULT: i;
+fill_lines_surface_err:
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return err;
 }
 
 static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background *args) {
