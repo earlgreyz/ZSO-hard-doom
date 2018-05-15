@@ -1,7 +1,0 @@
-#ifndef DOOMPCI_H
-#define DOOMPCI_H
-
-#define DOOMPCI_VENDOR_ID 0x0666
-#define DOOMPCI_DEVICE_ID 0x1993
-
-#endif

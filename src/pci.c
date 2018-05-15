@@ -1,8 +1,9 @@
 #include <linux/spinlock.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
-#include <linux/mutex.h>
+#include <linux/interrupt.h>
 #include <linux/kernel.h>
+#include <linux/mutex.h>
 #include <linux/pci.h>
 
 #include "../include/harddoom.h"
@@ -26,10 +27,24 @@ static int load_microcode(void __iomem *BAR0) {
   iowrite32(HARDDOOM_RESET_ALL, BAR0 + HARDDOOM_RESET);
   // Initialize command iomem here (CMD_*_PTR)
   iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR);
-  // Enable used interrupts (INTR_ENABLE) here
+  iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR_ENABLE);
   iowrite32(HARDDOOM_ENABLE_ALL & ~HARDDOOM_ENABLE_FETCH_CMD, BAR0 + HARDDOOM_ENABLE);
 
   return 0;
+}
+
+static irqreturn_t irq_handler(int irq, void *dev) {
+  struct doom_prv *drvdata = (struct doom_prv *) dev;
+  unsigned int interrupts;
+
+  interrupts = ioread32(drvdata->BAR0 + HARDDOOM_INTR);
+  if (interrupts == 0x00) {
+    return IRQ_NONE;
+  }
+
+  iowrite32(interrupts, drvdata->BAR0 + HARDDOOM_INTR);
+  printk(KERN_INFO "[doomirq] Received interrupt %x\n", interrupts);
+  return IRQ_HANDLED;
 }
 
 static int init_device(struct pci_dev *dev, struct doom_prv *drvdata) {
@@ -146,11 +161,20 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   }
 
   drvdata = (struct doom_prv *) pci_get_drvdata(dev);
+
+  err = request_irq(dev->irq, &irq_handler, IRQF_SHARED, "doom", drvdata);
+  if (IS_ERR_VALUE(err)) {
+    printk(KERN_ERR "[doompci] Init Device error: request_irq\n");
+    goto probe_irq_err;
+  }
+
   load_microcode(drvdata->BAR0);
 
   printk(KERN_INFO "[doompci] Probe success\n");
   return 0;
 
+probe_irq_err:
+  pci_clear_master(dev);
 probe_dma_err:
   destroy_drvdata(dev);
 probe_init_drvdata_err:
@@ -162,6 +186,8 @@ probe_enable_err:
 }
 
 static void remove(struct pci_dev *dev) {
+  struct doom_prv *drvdata = pci_get_drvdata(dev);
+  free_irq(dev->irq, drvdata);
   pci_clear_master(dev);
   destroy_drvdata(dev);
   pci_release_regions(dev);
