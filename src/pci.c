@@ -14,14 +14,6 @@
 
 #define DRIVER_NAME "harddoom"
 
-struct doom_pci_prv {
-  struct doom_prv *drvdata;
-
-  dev_t           dev;
-  struct cdev     *cdev;
-  struct device   *device;
-};
-
 static int load_microcode(void __iomem *BAR0) {
   size_t i;
 
@@ -40,59 +32,17 @@ static int load_microcode(void __iomem *BAR0) {
   return 0;
 }
 
-static int init_drvdata(struct pci_dev *dev, struct doom_prv **drvdata) {
+static int init_device(struct pci_dev *dev, struct doom_prv *drvdata) {
   unsigned long err;
-  struct doom_prv *data;
+  doom_cdev_init(&drvdata->cdev, &drvdata->dev);
 
-  data = (struct doom_prv *) kzalloc(sizeof(struct doom_prv), GFP_KERNEL);
-  if (IS_ERR(data)) {
-    printk(KERN_ERR "[doompci] Init Shared error: kzalloc\n");
-    err = PTR_ERR(data);
-    goto init_drvdata_kzalloc_err;
-  }
-
-  data->BAR0 = pci_iomap(dev, 0, 0);
-  if (IS_ERR(data->BAR0)) {
-    printk(KERN_ERR "[doompci] Init Shared error: pci_iomap\n");
-    err = PTR_ERR(data->BAR0);
-    goto init_drvdata_iomap_err;
-  }
-
-  data->pci = &dev->dev;
-
-  spin_lock_init(&data->fifo_lock);
-  mutex_init(&data->cmd_mutex);
-  *drvdata = data;
-  return 0;
-
-init_drvdata_iomap_err:
-  kfree(data);
-init_drvdata_kzalloc_err:
-  return err;
-}
-
-static void destroy_drvdata(struct pci_dev *dev, struct doom_prv *drvdata) {
-  pci_iounmap(dev, drvdata->BAR0);
-  kfree(drvdata);
-}
-
-static int init_device(struct pci_dev *dev, struct doom_pci_prv *drvdata) {
-  unsigned long err;
-
-  drvdata->cdev = doom_cdev_alloc(&drvdata->dev);
-  if (IS_ERR(drvdata->cdev)) {
-    printk(KERN_ERR "[doompci] Init Device error: doom_cdev_alloc\n");
-    err = PTR_ERR(drvdata->cdev);
-    goto init_device_cdev_err;
-  }
-
-  err = cdev_add(drvdata->cdev, drvdata->dev, 1);
+  err = cdev_add(&drvdata->cdev, drvdata->dev, 1);
   if (IS_ERR_VALUE(err)) {
     printk(KERN_INFO "[doompci] Init Device error error: cdev_add\n");
     goto init_device_add_err;
   }
 
-  drvdata->device = doom_device_create(&dev->dev, drvdata->drvdata);
+  drvdata->device = doom_device_create(&dev->dev, drvdata);
   if (IS_ERR(drvdata->device)) {
     printk(KERN_ERR "[doompci] Init Device error: device_create\n");
     err = PTR_ERR(drvdata->device);
@@ -103,60 +53,65 @@ static int init_device(struct pci_dev *dev, struct doom_pci_prv *drvdata) {
 
 init_device_create_err:
 init_device_add_err:
-  cdev_del(drvdata->cdev);
-init_device_cdev_err:
+  cdev_del(&drvdata->cdev);
   return err;
 }
 
-static void destroy_device(struct doom_pci_prv *prv) {
-  doom_device_destroy(prv->dev);
-  cdev_del(prv->cdev);
+static void destroy_device(struct doom_prv *drvdata) {
+  doom_device_destroy(drvdata->dev);
+  cdev_del(&drvdata->cdev);
 }
 
-static int init_private(struct pci_dev *dev) {
+static int init_drvdata(struct pci_dev *dev) {
   unsigned long err;
-  struct doom_pci_prv *prv;
+  struct doom_prv *drvdata;
 
-  prv = (struct doom_pci_prv *) kzalloc(sizeof(struct doom_pci_prv), GFP_KERNEL);
-  if (IS_ERR(prv)) {
-    printk(KERN_ERR "[doompci] Init Private error: kzalloc\n");
-    err = PTR_ERR(prv);
+  drvdata = (struct doom_prv *) kzalloc(sizeof(struct doom_prv), GFP_KERNEL);
+  if (IS_ERR(drvdata)) {
+    printk(KERN_ERR "[doompci] Init drvdata error: kzalloc\n");
+    err = PTR_ERR(drvdata);
     goto init_private_kzalloc_err;
   }
 
-  err = init_drvdata(dev, &prv->drvdata);
-  if (IS_ERR_VALUE(err)) {
-    printk(KERN_INFO "[doompci] Init Private error: init_drvdata\n");
-    goto init_private_shared_err;
+  drvdata->BAR0 = pci_iomap(dev, 0, 0);
+  if (IS_ERR(drvdata->BAR0)) {
+    printk(KERN_ERR "[doompci] Init Shared error: pci_iomap\n");
+    err = PTR_ERR(drvdata->BAR0);
+    goto init_drvdata_iomap_err;
   }
 
-  err = init_device(dev, prv);
+  drvdata->pci = &dev->dev;
+
+  spin_lock_init(&drvdata->fifo_lock);
+  mutex_init(&drvdata->cmd_mutex);
+
+  err = init_device(dev, drvdata);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_INFO "[doompci] Init Private error: init_device\n");
-    goto init_private_device_err;
+    printk(KERN_INFO "[doompci] Init drvdata error: init_device\n");
+    goto init_drvdata_device_err;
   }
 
-  pci_set_drvdata(dev, prv);
+  pci_set_drvdata(dev, drvdata);
   return 0;
 
-init_private_device_err:
-  destroy_drvdata(dev, prv->drvdata);
-init_private_shared_err:
-  kfree(prv);
+init_drvdata_device_err:
+  pci_iounmap(dev, drvdata->BAR0);
+init_drvdata_iomap_err:
+  kfree(drvdata);
 init_private_kzalloc_err:
   return err;
 }
 
-static void destroy_private(struct pci_dev *dev) {
-  struct doom_pci_prv *prv = (struct doom_pci_prv *) pci_get_drvdata(dev);
-  destroy_device(prv);
-  destroy_drvdata(dev, prv->drvdata);
-  kfree(prv);
+static void destroy_drvdata(struct pci_dev *dev) {
+  struct doom_prv *drvdata = (struct doom_prv *) pci_get_drvdata(dev);
+  destroy_device(drvdata);
+  pci_iounmap(dev, drvdata->BAR0);
+  kfree(drvdata);
 }
 
 static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
   unsigned long err;
-  struct doom_pci_prv *prv;
+  struct doom_prv *drvdata;
 
   err = pci_enable_device(dev);
   if (IS_ERR_VALUE(err)) {
@@ -170,10 +125,10 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_request_err;
   }
 
-  err = init_private(dev);
+  err = init_drvdata(dev);
   if (IS_ERR_VALUE(err)) {
     printk(KERN_ERR "[doompci] Probe error: init_private\n");
-    goto probe_init_private_err;
+    goto probe_init_drvdata_err;
   }
 
   pci_set_master(dev);
@@ -190,15 +145,15 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_dma_err;
   }
 
-  prv = (struct doom_pci_prv *) pci_get_drvdata(dev);
-  load_microcode(prv->drvdata->BAR0);
+  drvdata = (struct doom_prv *) pci_get_drvdata(dev);
+  load_microcode(drvdata->BAR0);
 
   printk(KERN_INFO "[doompci] Probe success\n");
   return 0;
 
 probe_dma_err:
-  destroy_private(dev);
-probe_init_private_err:
+  destroy_drvdata(dev);
+probe_init_drvdata_err:
   pci_release_regions(dev);
 probe_request_err:
   pci_disable_device(dev);
@@ -208,7 +163,7 @@ probe_enable_err:
 
 static void remove(struct pci_dev *dev) {
   pci_clear_master(dev);
-  destroy_private(dev);
+  destroy_drvdata(dev);
   pci_release_regions(dev);
   pci_disable_device(dev);
   printk(KERN_INFO "[doompci] Remove finished\n");

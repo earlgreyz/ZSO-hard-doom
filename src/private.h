@@ -8,7 +8,11 @@
 
 struct doom_prv {
   void __iomem    *BAR0;
+
   struct device   *pci;
+  struct device   *device;
+  struct cdev     cdev;
+  dev_t           dev;
 
   dma_addr_t      surface;
 
