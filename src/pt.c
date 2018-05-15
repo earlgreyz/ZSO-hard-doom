@@ -2,7 +2,7 @@
 
 #include <linux/errno.h>
 
-#define MK_PT_ENTRY(addr) ((((uint32_t) addr) & 0xfffff000) | 0x00000001)
+#define MK_PT_ENTRY(addr) (((addr) & 0xfffff000) | 0x00000001)
 
 long pt_length(uint32_t buffer_size) {
   int len = buffer_size / DOOM_PAGE_SIZE;

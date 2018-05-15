@@ -40,7 +40,7 @@ static long surface_select(struct surface_prv *prv) {
     return 0;
   }
 
-  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_SRC_PT(prv->pt_dma)))) {
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_DST_PT(prv->pt_dma)))) {
     goto surface_surf_src_pt_err;
   }
   if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_DIMS(prv->width, prv->height)))) {
@@ -237,6 +237,7 @@ static int allocate_surface(struct surface_prv *prv, size_t size) {
   prv->pt = (struct pt_entry *) (prv->surface + aligned_size);
   prv->pt_dma = prv->surface_dma + aligned_size;
   pt_fill(prv->surface_dma, prv->pt, pt_len);
+
   return 0;
 }
 
