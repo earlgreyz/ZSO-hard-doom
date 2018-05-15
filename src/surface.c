@@ -171,18 +171,41 @@ static long surface_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 }
 
 static loff_t surface_llseek(struct file *file, loff_t filepos, int whence) {
-  file->f_pos = filepos;
-  return 0;
+  loff_t pos = 0;
+
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+  size_t size = prv->width * prv->height;
+
+  switch (whence) {
+    case SEEK_SET:
+      pos = filepos;
+      printk(KERN_INFO "[surface_llseek] SEEK_SET to %lu\n", pos);
+      break;
+    case SEEK_CUR:
+      pos = file->f_pos + filepos;
+      printk(KERN_INFO "[surface_llseek] SEEK_CUR to %lu\n", pos);
+      break;
+    case SEEK_END:
+      pos = size - filepos;
+      printk(KERN_INFO "[surface_llseek] SEEK_END to %lu\n", pos);
+      break;
+    default:
+      printk(KERN_INFO "[surface_llseek] invalid whence\n");
+      return -EINVAL;
+  }
+
+  file->f_pos = pos;
+  return pos;
 }
 
 static ssize_t surface_read(struct file *file, char __user *buf, size_t count, loff_t *filepos) {
   unsigned long err;
 
-  size_t size, copied;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
+  size_t copied, size = prv->width * prv->height;
 
-  size = prv->width * prv->height;
   if (*filepos > size || *filepos < 0) {
+    printk(KERN_INFO "[surface_read] EOF\n");
     return 0;
   }
 
@@ -193,9 +216,11 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
   err = copy_to_user(buf, prv->surface + *filepos, count);
   copied = count - err;
   if (copied == 0) {
+    printk(KERN_INFO "[surface_read] Copied 0 bytes, count=%lu, err=%lu\n", count, err);
     return -EFAULT;
   }
 
+  printk(KERN_INFO "[surface_read] Copied %lu bytes\n", copied);
   *filepos = *filepos + copied;
   return copied;
 }
@@ -275,7 +300,7 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
     goto create_allocate_err;
   }
 
-  surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, prv, O_RDONLY | O_CLOEXEC);
+  surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, prv, O_RDWR);
   if (IS_ERR_VALUE((unsigned long) surface_fd)) {
     printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate a fd\n");
     err = (unsigned long) surface_fd;
@@ -283,7 +308,7 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
   }
 
   fd = fdget(surface_fd);
-  fd.file->f_mode = FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE;
+  fd.file->f_mode |= FMODE_LSEEK | FMODE_PREAD | FMODE_PWRITE;
 
   return surface_fd;
 
