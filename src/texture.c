@@ -44,8 +44,6 @@ static int allocate_texture(struct texture_prv *prv, size_t size) {
   size_t pt_size;
   size_t aligned_size = ALIGN(size, PT_ALIGNMENT);
 
-  printk(KERN_DEBUG "[doom_texture] %lu aligned to %lu\n", size, aligned_size);
-
   pt_len = pt_length(size);
   if (IS_ERR_VALUE(pt_len)) {
     return pt_len;
@@ -77,7 +75,7 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
 
   prv = (struct texture_prv *) kmalloc(sizeof(struct texture_prv), GFP_KERNEL);
   if (IS_ERR(prv)) {
-    printk(KERN_WARNING "[doom_surface] Texture Create unable to alocate private\n");
+    printk(KERN_WARNING "[doom_texture] Texture Create unable to alocate private\n");
     err = PTR_ERR(prv);
     goto create_kmalloc_err;
   }
@@ -89,19 +87,19 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
 
   err = allocate_texture(prv, args->size);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_WARNING "[doom_surface] Texture Create unable to alocate private\n");
+    printk(KERN_WARNING "[doom_texture] Texture Create unable to alocate private\n");
     goto create_allocate_err;
   }
 
   err = copy_from_user(prv->texture, (void __user *) args->data_ptr, args->size);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_WARNING "[doom_surface] Texture Create unable to copy texture data\n");
+    printk(KERN_WARNING "[doom_texture] Texture Create unable to copy texture data\n");
     goto create_copy_err;
   }
 
   fd = anon_inode_getfd(TEXTURE_FILE_TYPE, &texture_ops, prv, O_RDONLY | O_CLOEXEC);
   if (IS_ERR_VALUE((unsigned long) fd)) {
-    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate a fd\n");
+    printk(KERN_WARNING "[doom_texture] Surface Create unable to alocate a fd\n");
     err = (unsigned long) fd;
     goto create_getfd_err;
   }

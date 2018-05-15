@@ -5,9 +5,8 @@
 #include <linux/kernel.h>
 #include <linux/pci.h>
 
+#include "../include/harddoom.h"
 #include "../include/doomcode.h"
-#include "../include/doompci.h"
-#include "../include/doomreg.h"
 
 #include "chrdev.h"
 #include "pci.h"
@@ -26,17 +25,17 @@ struct doom_pci_prv {
 static int load_microcode(void __iomem *BAR0) {
   size_t i;
 
-  iowrite32(0, BAR0 + DOOMREG_FE_CODE_ADDR);
+  iowrite32(0, BAR0 + HARDDOOM_FE_CODE_ADDR);
 
   for (i = 0; i < ARRAY_SIZE(doomcode); ++i) {
-    iowrite32(doomcode[i], BAR0 + DOOMREG_FE_CODE_WINDOW);
+    iowrite32(doomcode[i], BAR0 + HARDDOOM_FE_CODE_WINDOW);
   }
 
-  iowrite32(RESET_ALL, BAR0 + DOOMREG_RESET);
+  iowrite32(HARDDOOM_RESET_ALL, BAR0 + HARDDOOM_RESET);
   // Initialize command iomem here (CMD_*_PTR)
-  iowrite32(INTR_ALL, BAR0 + DOOMREG_INTR);
+  iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR);
   // Enable used interrupts (INTR_ENABLE) here
-  iowrite32(ENABLE_ALL & ~ENABLE_FETCH, BAR0 + DOOMREG_ENABLE);
+  iowrite32(HARDDOOM_ENABLE_ALL & ~HARDDOOM_ENABLE_FETCH_CMD, BAR0 + HARDDOOM_ENABLE);
 
   return 0;
 }
@@ -54,7 +53,7 @@ static int init_drvdata(struct pci_dev *dev, struct doom_prv **drvdata) {
 
   data->BAR0 = pci_iomap(dev, 0, 0);
   if (IS_ERR(data->BAR0)) {
-    printk(KERN_INFO "[doompci] Init Shared error: pci_iomap\n");
+    printk(KERN_ERR "[doompci] Init Shared error: pci_iomap\n");
     err = PTR_ERR(data->BAR0);
     goto init_drvdata_iomap_err;
   }
@@ -216,7 +215,7 @@ static void remove(struct pci_dev *dev) {
 }
 
 static const struct pci_device_id pci_ids[] = {
-  { PCI_DEVICE(DOOMPCI_VENDOR_ID, DOOMPCI_DEVICE_ID) },
+  { PCI_DEVICE(HARDDOOM_VENDOR_ID, HARDDOOM_DEVICE_ID) },
   { },
 };
 

@@ -36,8 +36,6 @@ struct surface_prv {
 static long surface_select(struct surface_prv *prv) {
   unsigned long err;
 
-  printk(KERN_INFO "Surface select\n");
-
   if (prv->drvdata->surface == prv->surface_dma) {
     return 0;
   }
@@ -48,8 +46,6 @@ static long surface_select(struct surface_prv *prv) {
   if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_DIMS(prv->width, prv->height)))) {
     goto surface_surf_dims_err;
   }
-
-  printk(KERN_INFO "Surface select finished\n");
 
   return 0;
 
@@ -70,7 +66,6 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
   struct doomdev_fill_rect *rect;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
-  printk(KERN_INFO "fill_rects mutex -> %p %p\n", &prv->drvdata->cmd_mutex, prv->drvdata->cmd_mutex);
   mutex_lock(&prv->drvdata->cmd_mutex);
   if ((err = surface_select(prv))) {
     goto fill_rects_surface_err;
@@ -78,15 +73,15 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
 
   for (i = 0; i < args->rects_num; ++i) {
     rect = (struct doomdev_fill_rect *) args->rects_ptr + i;
-    printk(KERN_INFO "fill_rects %ld -> fill_color\n", i);
+    //printk(KERN_INFO "fill_rects %ld -> fill_color\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(rect->color)))) {
       goto fill_rects_rect_err;
     }
-    printk(KERN_INFO "draw_lines %ld -> xy_a\n", i);
+    //printk(KERN_INFO "draw_lines %ld -> xy_a\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y)))) {
       goto fill_rects_rect_err;
     }
-    printk(KERN_INFO "draw_lines %ld -> fill_rect\n", i);
+    //printk(KERN_INFO "draw_lines %ld -> fill_rect\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_RECT(rect->width, rect->height)))) {
       goto fill_rects_rect_err;
     }
@@ -96,7 +91,7 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
   return 0;
 
 fill_rects_rect_err:
-  err = i == 0? -EFAULT: i;
+  err = i;// == 0? -EFAULT: i;
 fill_rects_surface_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
@@ -109,7 +104,6 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
   struct doomdev_line *line;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
-  printk(KERN_INFO "draw_lines mutex -> %p %p\n", &prv->drvdata->cmd_mutex, prv->drvdata->cmd_mutex);
   mutex_lock(&prv->drvdata->cmd_mutex);
   if ((err = surface_select(prv))) {
     goto fill_lines_surface_err;
@@ -117,19 +111,19 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
 
   for (i = 0; i < args->lines_num; ++i) {
     line = (struct doomdev_line *) args->lines_ptr + i;
-    printk(KERN_INFO "draw_lines %ld -> fill_color\n", i);
+    //printk(KERN_INFO "draw_lines %ld -> fill_color\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line->color)))) {
       goto fill_lines_line_err;
     }
-    printk(KERN_INFO "draw_lines %ld -> xy_a\n", i);
+    //printk(KERN_INFO "draw_lines %ld -> xy_a\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line->pos_a_x, line->pos_a_y)))) {
       goto fill_lines_line_err;
     }
-    printk(KERN_INFO "draw_lines %ld -> xy_b\n", i);
+    //printk(KERN_INFO "draw_lines %ld -> xy_b\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line->pos_b_x, line->pos_b_y)))) {
       goto fill_lines_line_err;
     }
-    printk(KERN_INFO "draw_lines %ld -> draw_line\n", i);
+    //printk(KERN_INFO "draw_lines %ld -> draw_line\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_LINE))) {
       goto fill_lines_line_err;
     }
@@ -139,7 +133,7 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
   return 0;
 
 fill_lines_line_err:
-  err = i == 0? -EFAULT: i;
+  err = i; // == 0? -EFAULT: i;
 fill_lines_surface_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;

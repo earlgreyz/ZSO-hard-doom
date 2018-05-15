@@ -5,6 +5,7 @@
 #include <linux/module.h>
 
 #include "../include/doomdev.h"
+#include "../include/harddoom.h"
 
 #include "chrdev.h"
 #include "flat.h"
@@ -19,9 +20,26 @@ static struct class doom_class = {
   .name = MODULE_NAME,
 };
 
+struct device_entry {
+  struct list_head list;
+  dev_t dev;
+  struct doom_prv *drvdata;
+};
+
+LIST_HEAD(device_list);
+
 static int doomdev_open(struct inode *ino, struct file *file) {
-  file->private_data = ino->i_private;
-  return 0;
+  struct device_entry *entry;
+
+  list_for_each_entry(entry, &device_list, list) {
+    if (entry->dev == ino->i_cdev->dev) {
+      file->private_data = entry->drvdata;
+      return 0;
+    }
+  }
+
+  printk(KERN_WARNING "[doomdev] Unable to find an entry for device %x\n", ino->i_cdev->dev);
+  return -EFAULT;
 }
 
 static int doomdev_release(struct inode *ino, struct file *file) {
@@ -69,11 +87,40 @@ struct cdev *doom_cdev_alloc(dev_t *dev) {
 }
 
 struct device *doom_device_create(struct device *parent, struct doom_prv *drvdata) {
-  // TODO: different numbers and version
-  return device_create(&doom_class, parent, doom_major, drvdata, "doom%d", 0);
+  struct device *device;
+  struct device_entry *entry;
+
+  device = device_create(&doom_class, parent, doom_major, drvdata, "doom%d", 0);
+  if (IS_ERR(device)) {
+    printk(KERN_ERR "[doomdev] Doom device create error: device_create\n");
+    return device;
+  }
+
+  entry = kmalloc(sizeof(struct device_entry), GFP_KERNEL);
+  if (IS_ERR(entry)) {
+    printk(KERN_ERR "[doomdev] Doom device create error: kmalloc\n");
+    return (struct device *) entry;
+  }
+
+  entry->dev = device->devt;
+  entry->drvdata = drvdata;
+  INIT_LIST_HEAD(&entry->list);
+
+  list_add(&entry->list, &device_list);
+  return device;
 }
 
 void doom_device_destroy(dev_t dev) {
+  struct device_entry *entry, *tmp;
+
+  list_for_each_entry_safe(entry, tmp, &device_list, list) {
+    if (entry->dev == dev) {
+      list_del(&entry->list);
+      kfree(entry);
+      break;
+    }
+  }
+
   device_destroy(&doom_class, dev);
 }
 
@@ -82,12 +129,12 @@ int doom_chrdev_register_driver(void) {
 
   err = alloc_chrdev_region(&doom_major, 0, 256, MODULE_NAME);
   if (IS_ERR_VALUE(err)) {
-  goto init_chrdev_err;
+    goto init_chrdev_err;
   }
 
   err = class_register(&doom_class);
   if (IS_ERR_VALUE(err)) {
-  goto init_class_err;
+    goto init_class_err;
   }
 
   return 0;
