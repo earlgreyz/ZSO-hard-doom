@@ -1,5 +1,4 @@
 #include <linux/anon_inodes.h>
-#include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/ioctl.h>
 #include <linux/module.h>
@@ -9,9 +8,11 @@
 #include "../include/harddoom.h"
 
 #include "cmd.h"
+#include "colormaps.h"
 #include "flat.h"
 #include "pt.h"
 #include "surface.h"
+#include "texture.h"
 
 #define SURFACE_FILE_TYPE "surface"
 
@@ -86,6 +87,26 @@ static int surface_src_select(struct surface_prv *prv) {
   return 0;
 }
 
+static int texture_select(struct texture_prv *prv) {
+  int err;
+
+  if (prv->drvdata->texture == prv->texture_dma) {
+    return 0;
+  }
+
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_TEXTURE_PT(prv->pt_dma)))) {
+    return err;
+  }
+
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_TEXTURE_DIMS(prv->size_m1, prv->height)))) {
+    prv->drvdata->texture = -1;
+    return err;
+  }
+
+  prv->drvdata->texture = prv->texture_dma;
+  return 0;
+}
+
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
   unsigned long err;
 
@@ -99,16 +120,16 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
   uint32_t width;
   uint32_t height;
 
+  src_fd = fdget(args->surf_src_fd);
   // Check if the src descriptor is a surface descriptor
-  if (!is_surface_fd(args->surf_src_fd)) {
-    return -EBADFD;
+  if (!is_surface_fd(&src_fd)) {
+    return -EINVAL;
   }
 
-  src_fd = fdget(args->surf_src_fd);
   src_prv = src_fd.file->private_data;
   // Check if the src descriptor was created on the same device
   if (src_prv->drvdata != prv->drvdata) {
-    return -EBADFD;
+    return -EINVAL;
   }
 
   mutex_lock(&prv->drvdata->cmd_mutex);
@@ -229,16 +250,16 @@ static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl
   struct fd flat_fd;
   struct flat_prv *flat_prv;
 
+  flat_fd = fdget(args->flat_fd);
   // Check if the flat descriptor is a surface descriptor
-  if (!is_flat_fd(args->flat_fd)) {
-    return -EBADFD;
+  if (!is_flat_fd(&flat_fd)) {
+    return -EINVAL;
   }
 
-  flat_fd = fdget(args->flat_fd);
   flat_prv = flat_fd.file->private_data;
   // Check if the flat descriptor was created on the same device
   if (flat_prv->drvdata != prv->drvdata) {
-    return -EBADFD;
+    return -EINVAL;
   }
 
   mutex_lock(&prv->drvdata->cmd_mutex);
@@ -262,7 +283,130 @@ draw_background_err:
 }
 
 static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns *args) {
-  return -ENOTTY;
+  unsigned long err;
+
+  long i;
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  struct fd texture_fd;
+  struct texture_prv *texture = NULL;
+
+  struct fd translations_fd, colormaps_fd;
+  struct colormaps_prv *colormaps = NULL, *translations = NULL;
+
+  struct doomdev_column *column;
+  dma_addr_t addr;
+
+  bool use_texture, use_translations, use_colormaps;
+
+  // HARDDOOM_DRAW_PARAMS_FUZZ ignores other flags
+  if (args->draw_flags & HARDDOOM_DRAW_PARAMS_FUZZ) {
+    args->draw_flags = HARDDOOM_DRAW_PARAMS_FUZZ;
+  }
+
+  use_texture = !(args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ);
+  use_translations = ((args->draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE)
+      && !(args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ));
+  use_colormaps = ((args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ)
+      || (args->draw_flags & DOOMDEV_DRAW_FLAGS_COLORMAP));
+
+  if (use_texture) {
+    texture_fd = fdget(args->texture_fd);
+    if (!is_texture_fd(&texture_fd)) {
+      return -EINVAL;
+    }
+
+    texture = texture_fd.file->private_data;
+    if (texture->drvdata != prv->drvdata) {
+      return -EINVAL;
+    }
+  }
+
+  if (use_translations) {
+    translations_fd = fdget(args->translations_fd);
+    if (!is_colormaps_fd(&translations_fd)) {
+      return -EINVAL;
+    }
+
+    translations = translations_fd.file->private_data;
+    if (translations->drvdata != prv->drvdata) {
+      return -EINVAL;
+    }
+  }
+
+  if (use_colormaps) {
+    colormaps_fd = fdget(args->colormaps_fd);
+    if (!is_colormaps_fd(&colormaps_fd)) {
+      return -EINVAL;
+    }
+
+    colormaps = colormaps_fd.file->private_data;
+    if (colormaps->drvdata != prv->drvdata) {
+      return -EINVAL;
+    }
+  }
+
+  mutex_lock(&prv->drvdata->cmd_mutex);
+  if ((err = surface_dst_select(prv, SELECT_DIMS))) {
+    goto draw_columns_err;
+  }
+
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_PARAMS(args->draw_flags)))) {
+    goto draw_columns_err;
+  }
+
+  if (use_texture) {
+    if ((err = texture_select(texture))) {
+      goto draw_columns_err;
+    }
+  }
+
+  if (use_translations) {
+    addr = translations->colormaps_dma + args->translation_idx * COLORMAP_SIZE;
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_TRANSLATION_ADDR(addr)))) {
+      goto draw_columns_err;
+    }
+  }
+
+  for (i = 0; i < args->columns_num; ++i) {
+    column = (struct doomdev_column *) args->columns_ptr + i;
+
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(column->x, column->y1)))) {
+      goto draw_columns_column_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_B(column->x, column->y2)))) {
+      goto draw_columns_column_err;
+    }
+
+    if (use_texture) {
+      if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_USTART(column->ustart)))) {
+        goto draw_columns_column_err;
+      }
+      if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_USTEP(column->ustep)))) {
+        goto draw_columns_column_err;
+      }
+    }
+
+    if (use_colormaps) {
+      addr = colormaps->colormaps_dma + column->colormap_idx * COLORMAP_SIZE;
+      if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_COLORMAP_ADDR(colormaps->colormaps_dma)))) {
+        goto draw_columns_column_err;
+      }
+    }
+
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_COLUMN(column->texture_offset)))) {
+      goto draw_columns_column_err;
+    }
+  }
+
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return i;
+
+draw_columns_column_err:
+  err = i == 0? -EFAULT: i;
+draw_columns_err:
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return err;
 }
 
 static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans *args) {
@@ -360,9 +504,8 @@ static struct file_operations surface_ops = {
   .release = surface_release,
 };
 
-bool is_surface_fd(int fd) {
-  struct fd fd_struct = fdget(fd);
-  return fd_struct.file->f_op == &surface_ops;
+bool is_surface_fd(struct fd *fd) {
+  return (fd->file != NULL) && (fd->file->f_op == &surface_ops);
 }
 
 static int allocate_surface(struct surface_prv *prv, size_t size) {

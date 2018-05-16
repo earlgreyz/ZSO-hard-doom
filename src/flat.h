@@ -2,6 +2,7 @@
 #define HARDDOOM_FLAT_H
 
 #include <linux/kernel.h>
+#include <linux/file.h>
 
 #include "../include/doomdev.h"
 
@@ -15,6 +16,6 @@ struct flat_prv {
 };
 
 long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *args);
-bool is_flat_fd(int fd);
+bool is_flat_fd(struct fd *fd);
 
 #endif

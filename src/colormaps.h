@@ -2,10 +2,13 @@
 #define DOOM_COLORMAP_H
 
 #include <linux/kernel.h>
+#include <linux/file.h>
 
 #include "../include/doomdev.h"
 
 #include "private.h"
+
+#define COLORMAP_SIZE 0x100
 
 struct colormaps_prv {
   struct doom_prv   *drvdata;
@@ -18,6 +21,6 @@ struct colormaps_prv {
 };
 
 long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps *args);
-bool is_colormaps_fd(int fd);
+bool is_colormaps_fd(struct fd *fd);
 
 #endif

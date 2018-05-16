@@ -8,6 +8,7 @@
 #include "../include/harddoom.h"
 
 #include "chrdev.h"
+#include "colormaps.h"
 #include "flat.h"
 #include "surface.h"
 #include "texture.h"
@@ -29,10 +30,6 @@ static int doomdev_release(struct inode *ino, struct file *file) {
   return 0;
 }
 
-static long doomdev_create_colormaps(struct file *file, struct doomdev_ioctl_create_colormaps *arg) {
-  return -ENOTTY;
-}
-
 static long doomdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
   struct doom_prv *prv = file->private_data;
 
@@ -44,7 +41,7 @@ static long doomdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg
     case DOOMDEV_IOCTL_CREATE_FLAT:
       return flat_create(prv, (struct doomdev_ioctl_create_flat *) arg);
     case DOOMDEV_IOCTL_CREATE_COLORMAPS:
-      return doomdev_create_colormaps(file, (struct doomdev_ioctl_create_colormaps *) arg);
+      return colormaps_create(prv, (struct doomdev_ioctl_create_colormaps *) arg);
     default:
       return -ENOTTY;
   }

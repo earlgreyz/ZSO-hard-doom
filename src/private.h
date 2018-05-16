@@ -20,10 +20,12 @@ struct doom_prv {
   struct semaphore ping_wait;
   struct semaphore ping_queue;
 
+  // Cache for currently set values
   dma_addr_t       surf_src;
   dma_addr_t       surf_dst;
   uint32_t         surf_width;
   uint32_t         surf_height;
+  dma_addr_t       texture;
 };
 
 #endif

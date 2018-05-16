@@ -1,5 +1,4 @@
 #include <linux/anon_inodes.h>
-#include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/ioctl.h>
 #include <linux/module.h>
@@ -13,6 +12,7 @@
 
 #define TEXTURE_MAX_SIZE   (4 << 20)
 #define TEXTURE_MAX_HEIGHT     1023
+#define TEXTURE_ALIGNMENT     0x100
 
 static int texture_release(struct inode *ino, struct file *file) {
   struct texture_prv *prv = (struct texture_prv *) file->private_data;
@@ -26,15 +26,15 @@ static struct file_operations texture_ops = {
   .release = texture_release,
 };
 
-bool is_texture_fd(int fd) {
-  struct fd fd_struct = fdget(fd);
-  return fd_struct.file->f_op == &texture_ops;
+bool is_texture_fd(struct fd *fd) {
+  return (fd->file != NULL) && (fd->file->f_op == &texture_ops);
 }
 
 static int allocate_texture(struct texture_prv *prv, size_t size) {
   long pt_len;
   size_t pt_size;
-  size_t aligned_size = ALIGN(size, PT_ALIGNMENT);
+  // TEXTURE_ALIGNMENT > PT_ALIGNMENT so lets take the bigger one
+  size_t aligned_size = ALIGN(size, TEXTURE_ALIGNMENT);
 
   pt_len = pt_length(size);
   if (IS_ERR_VALUE(pt_len)) {
@@ -75,6 +75,7 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
   *prv = (struct texture_prv){
     .drvdata = drvdata,
     .height = args->height,
+    .size_m1 = (ALIGN(args->size, TEXTURE_ALIGNMENT) >> 8) - 1,
   };
 
   err = allocate_texture(prv, args->size);

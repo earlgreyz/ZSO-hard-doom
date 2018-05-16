@@ -1,5 +1,4 @@
 #include <linux/anon_inodes.h>
-#include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/ioctl.h>
 #include <linux/module.h>
@@ -22,9 +21,8 @@ static struct file_operations flat_ops = {
   .release = flat_release,
 };
 
-bool is_flat_fd(int fd) {
-  struct fd fd_struct = fdget(fd);
-  return fd_struct.file->f_op == &flat_ops;
+bool is_flat_fd(struct fd *fd) {
+  return (fd->file != NULL) && (fd->file->f_op == &flat_ops);
 }
 
 long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *args) {
