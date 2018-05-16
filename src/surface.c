@@ -278,7 +278,7 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
 
   prv = (struct surface_prv *) kmalloc(sizeof(struct surface_prv), GFP_KERNEL);
   if (IS_ERR(prv)) {
-    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate private\n");
+    printk(KERN_WARNING "[doom_surface] surface_create error: kmalloc\n");
     err = PTR_ERR(prv);
     goto create_kmalloc_err;
   }
@@ -291,13 +291,13 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
 
   err = allocate_surface(prv, args->width * args->height);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate surface\n");
+    printk(KERN_WARNING "[doom_surface] surface_create error: allocate_surface\n");
     goto create_allocate_err;
   }
 
   surface_fd = anon_inode_getfd(SURFACE_FILE_TYPE, &surface_ops, prv, O_RDWR);
   if (IS_ERR_VALUE((unsigned long) surface_fd)) {
-    printk(KERN_WARNING "[doom_surface] Surface Create unable to alocate a fd\n");
+    printk(KERN_WARNING "[doom_surface] surface_create error: anon_inode_getfd\n");
     err = (unsigned long) surface_fd;
     goto create_getfd_err;
   }

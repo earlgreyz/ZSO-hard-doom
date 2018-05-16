@@ -34,7 +34,7 @@ long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colo
   struct colormaps_prv *prv;
   int fd;
 
-  if (args->num > 0x100) {
+  if (args->num > COLORMAPS_MAX_LENGTH) {
     return -EOVERFLOW;
   }
 

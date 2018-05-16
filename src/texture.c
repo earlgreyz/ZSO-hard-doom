@@ -14,19 +14,6 @@
 #define TEXTURE_MAX_SIZE   (4 << 20)
 #define TEXTURE_MAX_HEIGHT     1023
 
-struct texture_prv {
-  struct doom_prv   *drvdata;
-
-  uint16_t          height;
-
-  size_t            size;
-  void              *texture;
-  struct pt_entry   *pt;
-
-  dma_addr_t        texture_dma;
-  dma_addr_t        pt_dma;
-};
-
 static int texture_release(struct inode *ino, struct file *file) {
   struct texture_prv *prv = (struct texture_prv *) file->private_data;
   dma_free_coherent(prv->drvdata->pci, prv->size, prv->texture, prv->texture_dma);
@@ -38,6 +25,11 @@ static struct file_operations texture_ops = {
   .owner = THIS_MODULE,
   .release = texture_release,
 };
+
+bool is_texture_fd(int fd) {
+  struct fd fd_struct = fdget(fd);
+  return fd_struct.file->f_op == &texture_ops;
+}
 
 static int allocate_texture(struct texture_prv *prv, size_t size) {
   long pt_len;
@@ -75,7 +67,7 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
 
   prv = (struct texture_prv *) kmalloc(sizeof(struct texture_prv), GFP_KERNEL);
   if (IS_ERR(prv)) {
-    printk(KERN_WARNING "[doom_texture] Texture Create unable to alocate private\n");
+    printk(KERN_WARNING "[doom_texture] texture_create error: kmalloc\n");
     err = PTR_ERR(prv);
     goto create_kmalloc_err;
   }
@@ -87,19 +79,19 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
 
   err = allocate_texture(prv, args->size);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_WARNING "[doom_texture] Texture Create unable to alocate private\n");
+    printk(KERN_WARNING "[doom_texture] texture_create error: allocate_texture\n");
     goto create_allocate_err;
   }
 
   err = copy_from_user(prv->texture, (void __user *) args->data_ptr, args->size);
   if (IS_ERR_VALUE(err)) {
-    printk(KERN_WARNING "[doom_texture] Texture Create unable to copy texture data\n");
+    printk(KERN_WARNING "[doom_texture] texture_create error: copy_from_user\n");
     goto create_copy_err;
   }
 
   fd = anon_inode_getfd(TEXTURE_FILE_TYPE, &texture_ops, prv, O_RDONLY | O_CLOEXEC);
   if (IS_ERR_VALUE((unsigned long) fd)) {
-    printk(KERN_WARNING "[doom_texture] Surface Create unable to alocate a fd\n");
+    printk(KERN_WARNING "[doom_texture] texture_create error: anon_inode_getfd\n");
     err = (unsigned long) fd;
     goto create_getfd_err;
   }
