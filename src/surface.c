@@ -73,27 +73,25 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
 
   for (i = 0; i < args->rects_num; ++i) {
     rect = (struct doomdev_fill_rect *) args->rects_ptr + i;
-    //printk(KERN_INFO "fill_rects %ld -> fill_color\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(rect->color)))) {
       goto fill_rects_rect_err;
     }
-    //printk(KERN_INFO "draw_lines %ld -> xy_a\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y)))) {
       goto fill_rects_rect_err;
     }
-    //printk(KERN_INFO "draw_lines %ld -> fill_rect\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_RECT(rect->width, rect->height)))) {
       goto fill_rects_rect_err;
     }
   }
 
   mutex_unlock(&prv->drvdata->cmd_mutex);
-  return 0;
+  return i;
 
 fill_rects_rect_err:
-  err = i;// == 0? -EFAULT: i;
+  err = i == 0? -EFAULT: i;
 fill_rects_surface_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
+  printk(KERN_INFO "Fill rect error %ld\n", err);
   return err;
 }
 
@@ -111,29 +109,25 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
 
   for (i = 0; i < args->lines_num; ++i) {
     line = (struct doomdev_line *) args->lines_ptr + i;
-    //printk(KERN_INFO "draw_lines %ld -> fill_color\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line->color)))) {
       goto fill_lines_line_err;
     }
-    //printk(KERN_INFO "draw_lines %ld -> xy_a\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line->pos_a_x, line->pos_a_y)))) {
       goto fill_lines_line_err;
     }
-    //printk(KERN_INFO "draw_lines %ld -> xy_b\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line->pos_b_x, line->pos_b_y)))) {
       goto fill_lines_line_err;
     }
-    //printk(KERN_INFO "draw_lines %ld -> draw_line\n", i);
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_LINE))) {
       goto fill_lines_line_err;
     }
   }
 
   mutex_unlock(&prv->drvdata->cmd_mutex);
-  return 0;
+  return i;
 
 fill_lines_line_err:
-  err = i; // == 0? -EFAULT: i;
+  err = i == 0? -EFAULT: i;
 fill_lines_surface_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
@@ -179,18 +173,14 @@ static loff_t surface_llseek(struct file *file, loff_t filepos, int whence) {
   switch (whence) {
     case SEEK_SET:
       pos = filepos;
-      printk(KERN_INFO "[surface_llseek] SEEK_SET to %lu\n", pos);
       break;
     case SEEK_CUR:
       pos = file->f_pos + filepos;
-      printk(KERN_INFO "[surface_llseek] SEEK_CUR to %lu\n", pos);
       break;
     case SEEK_END:
       pos = size - filepos;
-      printk(KERN_INFO "[surface_llseek] SEEK_END to %lu\n", pos);
       break;
     default:
-      printk(KERN_INFO "[surface_llseek] invalid whence\n");
       return -EINVAL;
   }
 
@@ -205,7 +195,6 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
   size_t copied, size = prv->width * prv->height;
 
   if (*filepos > size || *filepos < 0) {
-    printk(KERN_INFO "[surface_read] EOF\n");
     return 0;
   }
 
@@ -216,11 +205,9 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
   err = copy_to_user(buf, prv->surface + *filepos, count);
   copied = count - err;
   if (copied == 0) {
-    printk(KERN_INFO "[surface_read] Copied 0 bytes, count=%lu, err=%lu\n", count, err);
     return -EFAULT;
   }
 
-  printk(KERN_INFO "[surface_read] Copied %lu bytes\n", copied);
   *filepos = *filepos + copied;
   return copied;
 }
