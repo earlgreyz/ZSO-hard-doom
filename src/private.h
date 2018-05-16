@@ -22,7 +22,7 @@ struct doom_prv {
 
   dma_addr_t       surf_src;
   dma_addr_t       surf_dst;
-  uint32_t          surf_width;
+  uint32_t         surf_width;
   uint32_t         surf_height;
 };
 

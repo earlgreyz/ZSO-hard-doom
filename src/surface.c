@@ -9,6 +9,7 @@
 #include "../include/harddoom.h"
 
 #include "cmd.h"
+#include "flat.h"
 #include "pt.h"
 #include "surface.h"
 
@@ -222,7 +223,42 @@ fill_lines_dst_err:
 }
 
 static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background *args) {
-  return -ENOTTY;
+  unsigned long err;
+
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+  struct fd flat_fd;
+  struct flat_prv *flat_prv;
+
+  // Check if the flat descriptor is a surface descriptor
+  if (!is_flat_fd(args->flat_fd)) {
+    return -EBADFD;
+  }
+
+  flat_fd = fdget(args->flat_fd);
+  flat_prv = flat_fd.file->private_data;
+  // Check if the flat descriptor was created on the same device
+  if (flat_prv->drvdata != prv->drvdata) {
+    return -EBADFD;
+  }
+
+  mutex_lock(&prv->drvdata->cmd_mutex);
+  if ((err = surface_dst_select(prv, SELECT_DIMS))) {
+    goto draw_background_err;
+  }
+
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FLAT_ADDR(flat_prv->flat_dma)))) {
+    goto draw_background_err;
+  }
+
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_BACKGROUND))) {
+    goto draw_background_err;
+  }
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return 0;
+
+draw_background_err:
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return err;
 }
 
 static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns *args) {
