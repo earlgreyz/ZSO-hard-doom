@@ -48,9 +48,14 @@ static irqreturn_t irq_handler(int irq, void *dev) {
   if (interrupts & HARDDOOM_INTR_PONG_SYNC) {
     up(&drvdata->ping_wait);
     up(&drvdata->ping_queue);
+  } else if (interrupts & HARDDOOM_INTR_FE_ERROR) {
+    printk(KERN_INFO "[doomirq] FE_ERROR %x for command %x\n", \
+      ioread32(drvdata->BAR0 + HARDDOOM_FE_ERROR_CODE), \
+      ioread32(drvdata->BAR0 + HARDDOOM_FE_ERROR_CMD));
+  } else {
+    printk(KERN_INFO "[doomirq] Received interrupt %x\n", interrupts);
   }
 
-  printk(KERN_INFO "[doomirq] Received interrupt %x\n", interrupts);
   return IRQ_HANDLED;
 }
 

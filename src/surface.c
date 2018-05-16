@@ -19,6 +19,8 @@
 #define SURFACE_MIN_HEIGHT     1
 #define SURFACE_WIDTH_MASK  0x7f
 
+#define SELECT_DIMS (1 << 0)
+
 struct surface_prv {
   struct doom_prv   *drvdata;
 
@@ -33,30 +35,117 @@ struct surface_prv {
   dma_addr_t        pt_dma;
 };
 
-static long surface_select(struct surface_prv *prv) {
-  unsigned long err;
+static int surface_dims_select(struct doom_prv *drvdata, uint32_t width, uint32_t height) {
+  int err;
 
-  if (prv->drvdata->surface == prv->surface_dma) {
+  if (drvdata->surf_width == width && drvdata->surf_height == height) {
     return 0;
   }
 
-  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_DST_PT(prv->pt_dma)))) {
-    goto surface_surf_src_pt_err;
+  if ((err = doom_cmd(drvdata, HARDDOOM_CMD_SURF_DIMS(width, height)))) {
+    drvdata->surf_width = 0;
+    drvdata->surf_height = 0;
+    return err;
   }
-  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_DIMS(prv->width, prv->height)))) {
-    goto surface_surf_dims_err;
+
+  drvdata->surf_width = width;
+  drvdata->surf_height = height;
+  return 0;
+}
+
+static int surface_dst_select(struct surface_prv *prv, int flags) {
+  int err;
+
+  if (prv->drvdata->surf_dst != prv->surface_dma) {
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_DST_PT(prv->pt_dma)))) {
+      prv->drvdata->surf_dst = -1;
+      return err;
+    }
+    prv->drvdata->surf_dst = prv->surface_dma;
+  }
+
+  if (flags & SELECT_DIMS) {
+    return surface_dims_select(prv->drvdata, prv->width, prv->height);
   }
 
   return 0;
+}
 
-surface_surf_dims_err:
-  prv->drvdata->surface = -1;
-surface_surf_src_pt_err:
-  return -EFAULT;
+static int surface_src_select(struct surface_prv *prv) {
+  int err;
+
+  if (prv->drvdata->surf_src != prv->surface_dma) {
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_SURF_SRC_PT(prv->pt_dma)))) {
+      prv->drvdata->surf_src = -1;
+      return err;
+    }
+    prv->drvdata->surf_src = prv->surface_dma;
+  }
+
+  return 0;
 }
 
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
-  return -ENOTTY;
+  unsigned long err;
+
+  long i;
+  struct doomdev_copy_rect *rect;
+  struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  struct fd src_fd;
+  struct surface_prv *src_prv;
+
+  uint32_t width;
+  uint32_t height;
+
+  // Check if the src descriptor is a surface descriptor
+  if (!is_surface_fd(args->surf_src_fd)) {
+    return -EBADFD;
+  }
+
+  src_fd = fdget(args->surf_src_fd);
+  src_prv = src_fd.file->private_data;
+  // Check if the src descriptor was created on the same device
+  if (src_prv->drvdata != prv->drvdata) {
+    return -EBADFD;
+  }
+
+  mutex_lock(&prv->drvdata->cmd_mutex);
+  if ((err = surface_dst_select(prv, 0))) {
+    goto fill_rects_surf_err;
+  }
+  if ((err = surface_src_select(src_prv))) {
+    goto fill_rects_surf_err;
+  }
+
+  width = max(prv->width, src_prv->width);
+  height = max(prv->height, src_prv->height);
+
+  if ((err = surface_dims_select(prv->drvdata, width, height))) {
+    goto fill_rects_surf_err;
+  }
+
+  for (i = 0; i < args->rects_num; ++i) {
+    rect = (struct doomdev_copy_rect *) args->rects_ptr + i;
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y)))) {
+      goto copy_rects_rect_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_XY_B(rect->pos_src_x, rect->pos_src_y)))) {
+      goto copy_rects_rect_err;
+    }
+    if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_COPY_RECT(rect->width, rect->height)))) {
+      goto copy_rects_rect_err;
+    }
+  }
+
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return i;
+
+copy_rects_rect_err:
+  err = i == 0? -EFAULT: i;
+fill_rects_surf_err:
+  mutex_unlock(&prv->drvdata->cmd_mutex);
+  return err;
 }
 
 static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects *args) {
@@ -67,8 +156,8 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
-  if ((err = surface_select(prv))) {
-    goto fill_rects_surface_err;
+  if ((err = surface_dst_select(prv, SELECT_DIMS))) {
+    goto fill_rects_surf_err;
   }
 
   for (i = 0; i < args->rects_num; ++i) {
@@ -89,9 +178,8 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
 
 fill_rects_rect_err:
   err = i == 0? -EFAULT: i;
-fill_rects_surface_err:
+fill_rects_surf_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
-  printk(KERN_INFO "Fill rect error %ld\n", err);
   return err;
 }
 
@@ -103,8 +191,8 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
-  if ((err = surface_select(prv))) {
-    goto fill_lines_surface_err;
+  if ((err = surface_dst_select(prv, SELECT_DIMS))) {
+    goto fill_lines_dst_err;
   }
 
   for (i = 0; i < args->lines_num; ++i) {
@@ -128,7 +216,7 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
 
 fill_lines_line_err:
   err = i == 0? -EFAULT: i;
-fill_lines_surface_err:
+fill_lines_dst_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
@@ -235,6 +323,11 @@ static struct file_operations surface_ops = {
   .read = surface_read,
   .release = surface_release,
 };
+
+bool is_surface_fd(int fd) {
+  struct fd fd_struct = fdget(fd);
+  return fd_struct.file->f_op == &surface_ops;
+}
 
 static int allocate_surface(struct surface_prv *prv, size_t size) {
   long pt_len;

@@ -14,13 +14,16 @@ struct doom_prv {
   struct cdev      cdev;
   dev_t            dev;
 
-  dma_addr_t       surface;
-
   spinlock_t       fifo_lock;
   struct mutex     cmd_mutex;
 
   struct semaphore ping_wait;
   struct semaphore ping_queue;
+
+  dma_addr_t       surf_src;
+  dma_addr_t       surf_dst;
+  uint32_t          surf_width;
+  uint32_t         surf_height;
 };
 
 #endif

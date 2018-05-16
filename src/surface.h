@@ -3,9 +3,11 @@
 
 #include <linux/kernel.h>
 
-#include "private.h"
 #include "../include/doomdev.h"
 
+#include "private.h"
+
 long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface *args);
+bool is_surface_fd(int fd);
 
 #endif
