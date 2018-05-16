@@ -198,6 +198,14 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
     return 0;
   }
 
+  // First queue to see if noone is pinging atm
+  down(&prv->drvdata->ping_queue);
+  // Send the ping and wait for the interrupt to wake us up
+  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_PING_SYNC))) {
+    return -EFAULT;
+  }
+  down(&prv->drvdata->ping_wait);
+
   if (count > size - *filepos) {
     count = size - *filepos;
   }

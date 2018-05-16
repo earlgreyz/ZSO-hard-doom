@@ -5,6 +5,7 @@
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/pci.h>
+#include <linux/semaphore.h>
 
 #include "../include/harddoom.h"
 #include "../include/doomcode.h"
@@ -43,6 +44,12 @@ static irqreturn_t irq_handler(int irq, void *dev) {
   }
 
   iowrite32(interrupts, drvdata->BAR0 + HARDDOOM_INTR);
+
+  if (interrupts & HARDDOOM_INTR_PONG_SYNC) {
+    up(&drvdata->ping_wait);
+    up(&drvdata->ping_queue);
+  }
+
   printk(KERN_INFO "[doomirq] Received interrupt %x\n", interrupts);
   return IRQ_HANDLED;
 }
@@ -99,6 +106,8 @@ static int init_drvdata(struct pci_dev *dev) {
 
   spin_lock_init(&drvdata->fifo_lock);
   mutex_init(&drvdata->cmd_mutex);
+  sema_init(&drvdata->ping_wait, 1);
+  sema_init(&drvdata->ping_queue, 1);
 
   err = init_device(dev, drvdata);
   if (IS_ERR_VALUE(err)) {
