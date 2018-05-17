@@ -1,2 +1,2 @@
 obj-m := harddoom.o
-harddoom-objs := module.o pci.o chrdev.o surface.o texture.o flat.o colormaps.o pt.o cmd.o
+harddoom-objs := cmd.o colormaps.o device.o flat.o module.o pci.o pt.o surface.o texture.o
