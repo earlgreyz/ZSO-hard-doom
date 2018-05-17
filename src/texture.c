@@ -33,11 +33,9 @@ bool is_texture_fd(struct fd *fd) {
 static int allocate_texture(struct texture_prv *prv, size_t size) {
   long pt_len;
   size_t pt_size;
-  // TEXTURE_ALIGNMENT > PT_ALIGNMENT so lets take the bigger one
   size_t aligned_size = ALIGN(size, TEXTURE_ALIGNMENT);
 
-  pt_len = pt_length(size);
-  if (IS_ERR_VALUE(pt_len)) {
+  if ((pt_len = pt_length(size)) <= 0) {
     return pt_len;
   }
 
@@ -45,8 +43,8 @@ static int allocate_texture(struct texture_prv *prv, size_t size) {
   prv->size = aligned_size + pt_size;
 
   prv->texture = dma_alloc_coherent(prv->drvdata->pci, prv->size, &prv->texture_dma, GFP_KERNEL);
-  if (IS_ERR(prv->texture)) {
-    return PTR_ERR(prv->texture);
+  if (prv->texture == NULL) {
+    return -ENOMEM;
   }
 
   prv->pt = (struct pt_entry *) (prv->texture + aligned_size);
@@ -56,7 +54,7 @@ static int allocate_texture(struct texture_prv *prv, size_t size) {
 }
 
 long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_texture *args) {
-  unsigned long err;
+  long err;
 
   struct texture_prv *prv;
   int fd;
@@ -66,9 +64,9 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
   }
 
   prv = (struct texture_prv *) kmalloc(sizeof(struct texture_prv), GFP_KERNEL);
-  if (IS_ERR(prv)) {
+  if (prv == NULL) {
     printk(KERN_WARNING "[doom_texture] texture_create error: kmalloc\n");
-    err = PTR_ERR(prv);
+    err = -ENOMEM;
     goto create_kmalloc_err;
   }
 
@@ -78,22 +76,22 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
     .size_m1 = (ALIGN(args->size, TEXTURE_ALIGNMENT) >> 8) - 1,
   };
 
-  err = allocate_texture(prv, args->size);
-  if (IS_ERR_VALUE(err)) {
+  if ((err = allocate_texture(prv, args->size))) {
     printk(KERN_WARNING "[doom_texture] texture_create error: allocate_texture\n");
     goto create_allocate_err;
   }
 
   err = copy_from_user(prv->texture, (void __user *) args->data_ptr, args->size);
-  if (IS_ERR_VALUE(err)) {
+  if (err > 0) {
     printk(KERN_WARNING "[doom_texture] texture_create error: copy_from_user\n");
+    err = -EFAULT;
     goto create_copy_err;
   }
 
-  fd = anon_inode_getfd(TEXTURE_FILE_TYPE, &texture_ops, prv, O_RDONLY | O_CLOEXEC);
-  if (IS_ERR_VALUE((unsigned long) fd)) {
+  fd = anon_inode_getfd(TEXTURE_FILE_TYPE, &texture_ops, prv, O_RDONLY);
+  if (fd < 0) {
     printk(KERN_WARNING "[doom_texture] texture_create error: anon_inode_getfd\n");
-    err = (unsigned long) fd;
+    err = fd;
     goto create_getfd_err;
   }
 

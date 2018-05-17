@@ -7,7 +7,7 @@
 #include "flat.h"
 
 #define FLAT_FILE_TYPE  "flat"
-#define FLAT_SIZE  0x1000
+#define FLAT_SIZE       0x1000
 
 static int flat_release(struct inode *ino, struct file *file) {
   struct flat_prv *prv = (struct flat_prv *) file->private_data;
@@ -26,14 +26,15 @@ bool is_flat_fd(struct fd *fd) {
 }
 
 long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *args) {
-  unsigned long err;
+  long err;
+
   struct flat_prv *prv;
   int fd;
 
   prv = (struct flat_prv *) kmalloc(sizeof(struct flat_prv), GFP_KERNEL);
-  if (IS_ERR(prv)) {
+  if (prv == NULL) {
     printk(KERN_WARNING "[doom_flat] flat_create error: kmalloc\n");
-    err = PTR_ERR(prv);
+    err = -ENOMEM;
     goto create_kmalloc_err;
   }
 
@@ -42,9 +43,9 @@ long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *arg
   };
 
   prv->flat = dma_alloc_coherent(prv->drvdata->pci, FLAT_SIZE, &prv->flat_dma, GFP_KERNEL);
-  if (IS_ERR(prv->flat)) {
+  if (prv->flat == NULL) {
     printk(KERN_WARNING "[doom_flat] flat_create error: dma_alloc_coherent\n");
-    err = PTR_ERR(prv->flat);
+    err = -ENOMEM;
     goto create_allocate_err;
   }
 
@@ -56,9 +57,9 @@ long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *arg
   }
 
   fd = anon_inode_getfd(FLAT_FILE_TYPE, &flat_ops, prv, O_RDONLY);
-  if (IS_ERR_VALUE((unsigned long) fd)) {
+  if (fd < 0) {
     printk(KERN_WARNING "[doom_flat] flat_create error: anon_inode_getfd\n");
-    err = (unsigned long) fd;
+    err = fd;
     goto create_getfd_err;
   }
 
