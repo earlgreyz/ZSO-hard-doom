@@ -1,8 +1,10 @@
+#include <linux/bitmap.h>
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/ioctl.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/spinlock.h>
 
 #include "../include/doomdev.h"
 #include "../include/harddoom.h"
@@ -15,7 +17,13 @@
 
 #define MODULE_NAME "harddoom"
 
+#define DOOM_MAX_DEV 256
+
 static dev_t doom_major;
+
+DEFINE_SPINLOCK(bitmap_lock);
+static unsigned long doom_bitmap[BITS_TO_LONGS(DOOM_MAX_DEV)];
+
 static struct class doom_class = {
   .owner = THIS_MODULE,
   .name = MODULE_NAME,
@@ -55,23 +63,47 @@ static struct file_operations doom_operations = {
   .release = doomdev_release,
 };
 
-void doom_cdev_init(struct cdev *cdev, dev_t *dev) {
+void doom_cdev_init(struct cdev *cdev) {
   cdev_init(cdev, &doom_operations);
-  *dev = doom_major; // TODO: allocate new number
 }
 
 struct device *doom_device_create(struct device *parent, struct doom_prv *drvdata) {
-  return device_create(&doom_class, parent, doom_major, drvdata, "doom%d", 0);
+  int bit;
+  struct device *device;
+
+  spin_lock(&bitmap_lock);
+  bit = find_first_zero_bit(doom_bitmap, DOOM_MAX_DEV);
+  set_bit(bit, doom_bitmap);
+  spin_unlock(&bitmap_lock);
+
+  printk(KERN_INFO "[doomdev] Creating device doom%d\n", bit);
+
+  drvdata->dev = doom_major + bit;
+  device = device_create(&doom_class, parent, drvdata->dev, drvdata, "doom%d", bit);
+  if (IS_ERR(device)) {
+    spin_lock(&bitmap_lock);
+    clear_bit(bit, doom_bitmap);
+    spin_unlock(&bitmap_lock);
+  }
+  return device;
 }
 
 void doom_device_destroy(dev_t dev) {
+  int bit = dev - doom_major;
+
   device_destroy(&doom_class, dev);
+
+  spin_lock(&bitmap_lock);
+  clear_bit(bit, doom_bitmap);
+  spin_unlock(&bitmap_lock);
+
+  printk(KERN_INFO "[doomdev] Destroying device doom%d\n", bit);
 }
 
 int doom_chrdev_register_driver(void) {
   unsigned long err;
 
-  err = alloc_chrdev_region(&doom_major, 0, 256, MODULE_NAME);
+  err = alloc_chrdev_region(&doom_major, 0, DOOM_MAX_DEV, MODULE_NAME);
   if (IS_ERR_VALUE(err)) {
     goto init_chrdev_err;
   }
@@ -81,15 +113,16 @@ int doom_chrdev_register_driver(void) {
     goto init_class_err;
   }
 
+  bitmap_zero(doom_bitmap, DOOM_MAX_DEV);
   return 0;
 
 init_class_err:
-  unregister_chrdev_region(doom_major, 8);
+  unregister_chrdev_region(doom_major, DOOM_MAX_DEV);
 init_chrdev_err:
   return err;
 }
 
 void doom_chrdev_unregister_driver(void) {
   class_unregister(&doom_class);
-  unregister_chrdev_region(doom_major, 8);
+  unregister_chrdev_region(doom_major, DOOM_MAX_DEV);
 }

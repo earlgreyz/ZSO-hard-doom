@@ -61,7 +61,7 @@ static irqreturn_t irq_handler(int irq, void *dev) {
 
 static int init_device(struct pci_dev *dev, struct doom_prv *drvdata) {
   unsigned long err;
-  doom_cdev_init(&drvdata->cdev, &drvdata->dev);
+  doom_cdev_init(&drvdata->cdev);
 
   err = cdev_add(&drvdata->cdev, drvdata->dev, 1);
   if (IS_ERR_VALUE(err)) {

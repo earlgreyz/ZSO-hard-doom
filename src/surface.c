@@ -305,10 +305,8 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   }
 
   use_texture = !(args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ);
-  use_translations = ((args->draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE)
-      && !(args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ));
-  use_colormaps = ((args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ)
-      || (args->draw_flags & DOOMDEV_DRAW_FLAGS_COLORMAP));
+  use_translations = (args->draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE);
+  use_colormaps = (args->draw_flags & (DOOMDEV_DRAW_FLAGS_FUZZ | DOOMDEV_DRAW_FLAGS_COLORMAP));
 
   if (use_texture) {
     texture_fd = fdget(args->texture_fd);
