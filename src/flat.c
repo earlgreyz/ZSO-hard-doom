@@ -25,6 +25,22 @@ bool is_flat_fd(struct fd *fd) {
   return (fd->file != NULL) && (fd->file->f_op == &flat_ops);
 }
 
+int flat_get(struct doom_prv *drvdata, int fd, struct flat_prv **res) {
+  struct fd flat_fd;
+  struct flat_prv *flat;
+
+  flat_fd = fdget(fd);
+  if (!is_flat_fd(&flat_fd))
+    return -EINVAL;
+
+  flat = (struct flat_prv *) flat_fd.file->private_data;
+  if (flat->drvdata != drvdata)
+    return -EINVAL;
+
+  *res = flat;
+  return 0;
+}
+
 long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *args) {
   long err;
 

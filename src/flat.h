@@ -24,6 +24,13 @@ struct flat_prv {
 long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *args);
 
 /**
+ * Finds a flat created on the same device based on the fd.
+ * @success stores a result in @param res and returns 0.
+ * @failure returns a negated error code.
+ **/
+int flat_get(struct doom_prv *drvdata, int fd, struct flat_prv **res);
+
+/**
  * Checks if a given fd is a flat file descriptor.
  * false is also retuned when the fd doesn't correspond to any open file.
  **/

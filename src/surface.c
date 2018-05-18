@@ -22,72 +22,6 @@
 #define SURFACE_MIN_HEIGHT     1
 #define SURFACE_WIDTH_MASK  0x7f
 
-#define SELECT_DIMS      (1 << 0)
-
-static int get_colormaps(struct doom_prv *drvdata, int fd, struct colormaps_prv **res) {
-  struct fd colormaps_fd;
-  struct colormaps_prv *colormaps;
-
-  colormaps_fd = fdget(fd);
-  if (!is_colormaps_fd(&colormaps_fd))
-    return -EINVAL;
-
-  colormaps = (struct colormaps_prv *) colormaps_fd.file->private_data;
-  if (colormaps->drvdata != drvdata)
-    return -EINVAL;
-
-  *res = colormaps;
-  return 0;
-}
-
-static int get_flat(struct doom_prv *drvdata, int fd, struct flat_prv **res) {
-  struct fd flat_fd;
-  struct flat_prv *flat;
-
-  flat_fd = fdget(fd);
-  if (!is_flat_fd(&flat_fd))
-    return -EINVAL;
-
-  flat = (struct flat_prv *) flat_fd.file->private_data;
-  if (flat->drvdata != drvdata)
-    return -EINVAL;
-
-  *res = flat;
-  return 0;
-}
-
-static int get_surface(struct doom_prv *drvdata, int fd, struct surface_prv **res) {
-  struct fd surface_fd;
-  struct surface_prv *surface;
-
-  surface_fd = fdget(fd);
-  if (!is_surface_fd(&surface_fd))
-    return -EINVAL;
-
-  surface = (struct surface_prv *) surface_fd.file->private_data;
-  if (surface->drvdata != drvdata)
-    return -EINVAL;
-
-  *res = surface;
-  return 0;
-}
-
-static int get_texture(struct doom_prv *drvdata, int fd, struct texture_prv **res) {
-  struct fd texture_fd;
-  struct texture_prv *texture;
-
-  texture_fd = fdget(fd);
-  if (!is_texture_fd(&texture_fd))
-    return -EINVAL;
-
-  texture = (struct texture_prv *) texture_fd.file->private_data;
-  if (texture->drvdata != drvdata)
-    return -EINVAL;
-
-  *res = texture;
-  return 0;
-}
-
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
   long err;
 
@@ -97,7 +31,7 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
 
   struct surface_prv *src_prv;
 
-  if ((err = get_surface(prv->drvdata, args->surf_src_fd, &src_prv)))
+  if ((err = surface_get(prv->drvdata, args->surf_src_fd, &src_prv)))
     return err;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
@@ -193,7 +127,7 @@ static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
   struct flat_prv *flat_prv;
 
-  if ((err = get_flat(prv->drvdata, args->flat_fd, &flat_prv)))
+  if ((err = flat_get(prv->drvdata, args->flat_fd, &flat_prv)))
     return err;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
@@ -232,15 +166,15 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   use_colormaps = (args->draw_flags & (DOOMDEV_DRAW_FLAGS_FUZZ | DOOMDEV_DRAW_FLAGS_COLORMAP));
 
   if (use_texture)
-    if ((err = get_texture(prv->drvdata, args->texture_fd, &texture)))
+    if ((err = texture_get(prv->drvdata, args->texture_fd, &texture)))
       return err;
 
   if (use_translations)
-    if ((err = get_colormaps(prv->drvdata, args->translations_fd, &translations)))
+    if ((err = colormaps_get(prv->drvdata, args->translations_fd, &translations)))
       return err;
 
   if (use_colormaps)
-    if ((err = get_colormaps(prv->drvdata, args->colormaps_fd, &colormaps)))
+    if ((err = colormaps_get(prv->drvdata, args->colormaps_fd, &colormaps)))
       return err;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
@@ -302,15 +236,15 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
   use_translations = args->draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE;
   use_colormaps = args->draw_flags & DOOMDEV_DRAW_FLAGS_COLORMAP;
 
-  if ((err = get_flat(prv->drvdata, args->flat_fd, &flat)))
+  if ((err = flat_get(prv->drvdata, args->flat_fd, &flat)))
     return err;
 
   if (use_translations)
-    if ((err = get_colormaps(prv->drvdata, args->translations_fd, &translations)))
+    if ((err = colormaps_get(prv->drvdata, args->translations_fd, &translations)))
       return err;
 
   if (use_colormaps)
-    if ((err = get_colormaps(prv->drvdata, args->colormaps_fd, &colormaps)))
+    if ((err = colormaps_get(prv->drvdata, args->colormaps_fd, &colormaps)))
       return err;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
@@ -446,6 +380,22 @@ static struct file_operations surface_ops = {
 
 bool is_surface_fd(struct fd *fd) {
   return (fd->file != NULL) && (fd->file->f_op == &surface_ops);
+}
+
+int surface_get(struct doom_prv *drvdata, int fd, struct surface_prv **res) {
+  struct fd surface_fd;
+  struct surface_prv *surface;
+
+  surface_fd = fdget(fd);
+  if (!is_surface_fd(&surface_fd))
+    return -EINVAL;
+
+  surface = (struct surface_prv *) surface_fd.file->private_data;
+  if (surface->drvdata != drvdata)
+    return -EINVAL;
+
+  *res = surface;
+  return 0;
 }
 
 static int allocate_surface(struct surface_prv *prv, size_t size) {

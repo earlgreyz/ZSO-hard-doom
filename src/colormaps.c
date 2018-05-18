@@ -27,6 +27,22 @@ bool is_colormaps_fd(struct fd *fd) {
   return (fd->file != NULL) && (fd->file->f_op == &colormaps_ops);
 }
 
+int colormaps_get(struct doom_prv *drvdata, int fd, struct colormaps_prv **res) {
+  struct fd colormaps_fd;
+  struct colormaps_prv *colormaps;
+
+  colormaps_fd = fdget(fd);
+  if (!is_colormaps_fd(&colormaps_fd))
+    return -EINVAL;
+
+  colormaps = (struct colormaps_prv *) colormaps_fd.file->private_data;
+  if (colormaps->drvdata != drvdata)
+    return -EINVAL;
+
+  *res = colormaps;
+  return 0;
+}
+
 long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps *args) {
   long err;
 
@@ -82,7 +98,7 @@ create_kmalloc_err:
   return err;
 }
 
-int colormaps_get_addr(struct colormaps_prv *prv, uint8_t idx, dma_addr_t *addr) {
+int colormaps_at(struct colormaps_prv *prv, uint8_t idx, dma_addr_t *addr) {
   if (idx >= prv->num) {
     return -EINVAL;
   }

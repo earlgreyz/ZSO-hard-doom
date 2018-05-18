@@ -36,4 +36,11 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
  **/
 bool is_texture_fd(struct fd *fd);
 
+/**
+ * Finds a texture created on the same device based on the fd.
+ * @success stores a result in @param res and returns 0.
+ * @failure returns a negated error code.
+ **/
+int texture_get(struct doom_prv *drvdata, int fd, struct texture_prv **res);
+
 #endif

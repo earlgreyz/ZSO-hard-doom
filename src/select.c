@@ -87,7 +87,7 @@ int select_colormap(struct colormaps_prv *colormaps, uint8_t idx, int flags) {
   if (flags & SELECT_CMAP_COLOR & SELECT_CMAP_TRANS)
     return -EINVAL;
 
-  if ((err = colormaps_get_addr(colormaps, idx, &addr)))
+  if ((err = colormaps_at(colormaps, idx, &addr)))
     return err;
 
   if (flags & SELECT_CMAP_COLOR) {

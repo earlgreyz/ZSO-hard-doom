@@ -33,10 +33,17 @@ long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colo
 bool is_colormaps_fd(struct fd *fd);
 
 /**
+ * Finds a colormaps created on the same device based on the fd.
+ * @success stores a result in @param res and returns 0.
+ * @failure returns a negated error code.
+ **/
+int colormaps_get(struct doom_prv *drvdata, int fd, struct colormaps_prv **res);
+
+/**
  * Calculates the DMA address of a colormap at the given index.
  * @success returns 0 and stores the address at @param addr.
  * @failure returns a negated error code.
  **/
-int colormaps_get_addr(struct colormaps_prv *prv, uint8_t idx, dma_addr_t *addr);
+int colormaps_at(struct colormaps_prv *prv, uint8_t idx, dma_addr_t *addr);
 
 #endif
