@@ -39,6 +39,11 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
     goto fill_rects_surf_err;
   if ((err = select_surface(src_prv, SELECT_SURF_SRC)))
     goto fill_rects_surf_err;
+  if (src_prv->dirty) {
+    if ((err = select_surface(src_prv, HARDDOOM_CMD_INTERLOCK)))
+      goto fill_rects_surf_err;
+    src_prv->dirty = false;
+  }
 
   for (i = 0; i < args->rects_num; ++i) {
     rect = (struct doomdev_copy_rect *) args->rects_ptr + i;
@@ -442,6 +447,7 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
     .drvdata = drvdata,
     .width = args->width,
     .height = args->height,
+    .dirty = false,
   };
 
   if ((err = allocate_surface(prv, args->width * args->height))) {

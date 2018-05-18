@@ -10,17 +10,19 @@
 
 /// Stored as a private_data of the surface descriptor.
 struct surface_prv {
-  struct doom_prv   *drvdata;    // Harddoom driver data
+  struct doom_prv   *drvdata;     // Harddoom driver data
 
-  uint32_t          width;       // Surface width in pixels
-  uint32_t          height;      // Surface height in pixels
+  uint32_t          width;        // Surface width in pixels
+  uint32_t          height;       // Surface height in pixels
 
-  size_t            size;        // Allocated memory size
-  void              *surface;    // Allocated surface ptr
-  struct pt_entry   *pt;         // Allocated page table ptr
+  size_t            size;         // Allocated memory size
+  void              *surface;     // Allocated surface ptr
+  struct pt_entry   *pt;          // Allocated page table ptr
 
   dma_addr_t        surface_dma;  // DMA address of the surface
   dma_addr_t        pt_dma;       // DMA address of the page table
+
+  bool              dirty;        // If the buffer has recently been drawn on
 };
 
 /**

@@ -26,6 +26,7 @@ static int select_surface_dst(struct surface_prv *surface) {
   if ((err = doom_cmd(surface->drvdata, HARDDOOM_CMD_SURF_DST_PT(surface->pt_dma))))
     return err;
 
+  surface->dirty = true;
   surface->drvdata->surf_dst = surface->surface_dma;
   return 0;
 }
