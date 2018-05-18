@@ -9,6 +9,7 @@
 #define COLORMAPS_FILE_TYPE  "colormaps"
 
 #define COLORMAPS_MAX_LENGTH  0x100
+#define COLORMAPS_MAP_SIZE    0x100
 
 static int colormaps_release(struct inode *ino, struct file *file) {
   struct colormaps_prv *prv = (struct colormaps_prv *) file->private_data;
@@ -27,7 +28,8 @@ bool is_colormaps_fd(struct fd *fd) {
 }
 
 long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps *args) {
-  unsigned long err;
+  long err;
+
   struct colormaps_prv *prv;
   int fd;
 
@@ -36,22 +38,22 @@ long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colo
   }
 
   prv = (struct colormaps_prv *) kmalloc(sizeof(struct colormaps_prv), GFP_KERNEL);
-  if (IS_ERR(prv)) {
+  if (prv == NULL) {
     printk(KERN_WARNING "[doom_colormaps] colormaps_create error: kmalloc\n");
-    err = PTR_ERR(prv);
+    err = -ENOMEM;
     goto create_kmalloc_err;
   }
 
   *prv = (struct colormaps_prv){
     .drvdata = drvdata,
     .num = args->num,
-    .size = COLORMAP_SIZE * args->num,
+    .size = COLORMAPS_MAP_SIZE * args->num,
   };
 
   prv->colormaps = dma_alloc_coherent(prv->drvdata->pci, prv->size, &prv->colormaps_dma, GFP_KERNEL);
-  if (IS_ERR(prv->colormaps)) {
+  if (prv->colormaps == NULL) {
     printk(KERN_WARNING "[doom_colormaps] colormaps_create error: dma_alloc_coherent\n");
-    err = PTR_ERR(prv->colormaps);
+    err = -ENOMEM;
     goto create_allocate_err;
   }
 
@@ -63,9 +65,9 @@ long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colo
   }
 
   fd = anon_inode_getfd(COLORMAPS_FILE_TYPE, &colormaps_ops, prv, O_RDONLY);
-  if (IS_ERR_VALUE((unsigned long) fd)) {
+  if (fd < 0) {
     printk(KERN_WARNING "[doom_colormaps] colormaps_create error: anon_inode_getfd\n");
-    err = (unsigned long) fd;
+    err = fd;
     goto create_getfd_err;
   }
 
@@ -78,4 +80,12 @@ create_allocate_err:
   kfree(prv);
 create_kmalloc_err:
   return err;
+}
+
+int colormaps_get_addr(struct colormaps_prv *prv, uint8_t idx, dma_addr_t *addr) {
+  if (idx >= prv->num) {
+    return -EINVAL;
+  }
+  *addr = prv->colormaps_dma + idx * COLORMAPS_MAP_SIZE;
+  return 0;
 }

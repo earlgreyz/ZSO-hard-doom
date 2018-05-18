@@ -360,7 +360,9 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   }
 
   if (use_translations) {
-    addr = translations->colormaps_dma + args->translation_idx * COLORMAP_SIZE;
+    if ((err = colormaps_get_addr(translations, args->translation_idx, &addr))) {
+      goto draw_columns_err;
+    }
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_TRANSLATION_ADDR(addr)))) {
       goto draw_columns_err;
     }
@@ -386,7 +388,9 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
     }
 
     if (use_colormaps) {
-      addr = colormaps->colormaps_dma + column->colormap_idx * COLORMAP_SIZE;
+      if ((err = colormaps_get_addr(colormaps, column->colormap_idx, &addr))) {
+        goto draw_columns_column_err;
+      }
       if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_COLORMAP_ADDR(addr)))) {
         goto draw_columns_column_err;
       }
@@ -410,7 +414,7 @@ draw_columns_err:
 static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans *args) {
   unsigned long err;
 
-  long i;
+  long i = 0;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   struct fd flat_fd;
@@ -473,7 +477,9 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
   }
 
   if (use_translations) {
-    addr = translations->colormaps_dma + args->translation_idx * COLORMAP_SIZE;
+    if ((err = colormaps_get_addr(translations, args->translation_idx, &addr))) {
+      goto draw_spans_span_err;
+    }
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_TRANSLATION_ADDR(addr)))) {
       goto draw_spans_err;
     }
@@ -501,7 +507,9 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
     }
 
     if (use_colormaps) {
-      addr = colormaps->colormaps_dma + span->colormap_idx * COLORMAP_SIZE;
+      if ((err = colormaps_get_addr(colormaps, span->colormap_idx, &addr))) {
+        goto draw_spans_span_err;
+      }
       if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_COLORMAP_ADDR(addr)))) {
         goto draw_spans_span_err;
       }
