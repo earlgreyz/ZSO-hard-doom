@@ -14,8 +14,11 @@ struct doom_prv {
   struct cdev      cdev;
   dev_t            dev;
 
-  spinlock_t       fifo_lock;
   struct mutex     cmd_mutex;
+
+  uint32_t         fifo_count;
+  struct semaphore fifo_wait;
+  struct semaphore fifo_queue;
 
   struct semaphore ping_wait;
   struct semaphore ping_queue;

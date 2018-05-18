@@ -30,7 +30,7 @@ static void load_microcode(void __iomem *BAR0) {
   iowrite32(HARDDOOM_RESET_ALL, BAR0 + HARDDOOM_RESET);
   // Initialize command iomem here (CMD_*_PTR)
   iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR);
-  iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR_ENABLE);
+  iowrite32(HARDDOOM_INTR_MASK & ~HARDDOOM_INTR_PONG_ASYNC, BAR0 + HARDDOOM_INTR_ENABLE);
   iowrite32(HARDDOOM_ENABLE_ALL & ~HARDDOOM_ENABLE_FETCH_CMD, BAR0 + HARDDOOM_ENABLE);
 }
 
@@ -52,6 +52,11 @@ static irqreturn_t irq_handler(int irq, void *dev) {
     up(&drvdata->ping_queue);
   }
 
+  if (interrupts & HARDDOOM_INTR_PONG_ASYNC) {
+    printk(KERN_INFO "[doomirq] PONG_ASYNC\n");
+    up(&drvdata->fifo_wait);
+  }
+
   // Handle FE_ERROR
   if (interrupts & HARDDOOM_INTR_FE_ERROR) {
     printk(KERN_INFO "[doomirq] FE_ERROR %x for command %x\n", \
@@ -60,7 +65,7 @@ static irqreturn_t irq_handler(int irq, void *dev) {
   }
 
   // Any other interrupt
-  if (interrupts & ~(HARDDOOM_INTR_PONG_SYNC | HARDDOOM_INTR_FE_ERROR)) {
+  if (interrupts & ~(HARDDOOM_INTR_PONG_SYNC | HARDDOOM_INTR_FE_ERROR | HARDDOOM_INTR_PONG_ASYNC)) {
     printk(KERN_INFO "[doomirq] interrupt %x\n", interrupts);
   }
 
@@ -117,9 +122,9 @@ static int init_drvdata(struct pci_dev *dev) {
 
   drvdata->pci = &dev->dev;
 
-  // Initialize synchronization mechanisms
-  spin_lock_init(&drvdata->fifo_lock);
   mutex_init(&drvdata->cmd_mutex);
+  sema_init(&drvdata->fifo_wait, 0);
+  sema_init(&drvdata->fifo_queue, 1);
   sema_init(&drvdata->ping_wait, 1);
   sema_init(&drvdata->ping_queue, 1);
 
