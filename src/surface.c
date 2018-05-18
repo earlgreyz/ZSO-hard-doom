@@ -156,11 +156,6 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   struct texture_prv *texture = NULL;
   struct colormaps_prv *colormaps = NULL, *translations = NULL;
 
-  // HARDDOOM_DRAW_PARAMS_FUZZ ignores other flags
-  if (args->draw_flags & HARDDOOM_DRAW_PARAMS_FUZZ) {
-    args->draw_flags = HARDDOOM_DRAW_PARAMS_FUZZ;
-  }
-
   use_texture = !(args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ);
   use_translations = (args->draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE);
   use_colormaps = (args->draw_flags & (DOOMDEV_DRAW_FLAGS_FUZZ | DOOMDEV_DRAW_FLAGS_COLORMAP));

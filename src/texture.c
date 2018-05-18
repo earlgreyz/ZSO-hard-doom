@@ -49,7 +49,7 @@ int texture_get(struct doom_prv *drvdata, int fd, struct texture_prv **res) {
 static int allocate_texture(struct texture_prv *prv, size_t size) {
   long pt_len;
   size_t pt_size;
-  size_t aligned_size = ALIGN(size, TEXTURE_ALIGNMENT);
+  size_t aligned_size = ALIGN(size, PT_ALIGNMENT);
 
   if ((pt_len = pt_length(size)) <= 0) {
     return pt_len;
@@ -74,6 +74,7 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
 
   struct texture_prv *prv;
   int fd;
+  size_t size;
 
   if (args->size > TEXTURE_MAX_SIZE || args->height > TEXTURE_MAX_HEIGHT) {
     return -EOVERFLOW;
@@ -86,13 +87,15 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
     goto create_kmalloc_err;
   }
 
+  size = ALIGN(args->size, TEXTURE_ALIGNMENT);
+
   *prv = (struct texture_prv){
     .drvdata = drvdata,
     .height = args->height,
-    .size_m1 = (ALIGN(args->size, TEXTURE_ALIGNMENT) >> 8) - 1,
+    .size_m1 = (size >> 8) - 1,
   };
 
-  if ((err = allocate_texture(prv, args->size))) {
+  if ((err = allocate_texture(prv, size))) {
     printk(KERN_WARNING "[doom_texture] texture_create error: allocate_texture\n");
     goto create_allocate_err;
   }
@@ -103,6 +106,8 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
     err = -EFAULT;
     goto create_copy_err;
   }
+
+  memset(prv->texture + args->size, 0, size - args->size);
 
   fd = anon_inode_getfd(TEXTURE_FILE_TYPE, &texture_ops, prv, O_RDONLY);
   if (fd < 0) {
