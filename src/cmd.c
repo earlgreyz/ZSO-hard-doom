@@ -25,6 +25,10 @@ static void fifo_wait(struct doom_prv *drvdata) {
 
   enabled = enabled & ~HARDDOOM_INTR_PONG_ASYNC;
   iowrite32(enabled, drvdata->BAR0 + HARDDOOM_INTR_ENABLE);
+
+  fifo_free = ioread32(drvdata->BAR0 + HARDDOOM_FIFO_FREE);
+  if (fifo_free <= 1)
+    fifo_wait(drvdata);
 }
 
 static void fifo_send(struct doom_prv *drvdata, uint32_t cmd) {
