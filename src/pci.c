@@ -12,6 +12,7 @@
 #include "../include/harddoom.h"
 #include "../include/doomcode.h"
 
+#include "cmd.h"
 #include "device.h"
 #include "pci.h"
 #include "private.h"
@@ -20,21 +21,42 @@
 #define HARDDOOM_PCI_RES_NAME     "harddoom"
 #define HARDDOOM_PCI_IRQ_NAME     "harddoom"
 
-static void load_microcode(void __iomem *BAR0) {
+static int start_device(struct doom_prv *drvdata) {
+  int err;
+
   size_t i;
+  uint32_t data;
+  void __iomem *BAR0 = drvdata->BAR0;
 
   iowrite32(0, BAR0 + HARDDOOM_FE_CODE_ADDR);
-
   for (i = 0; i < ARRAY_SIZE(doomcode); ++i) {
     iowrite32(doomcode[i], BAR0 + HARDDOOM_FE_CODE_WINDOW);
   }
 
   iowrite32(HARDDOOM_RESET_ALL, BAR0 + HARDDOOM_RESET);
-  // Initialize command iomem here (CMD_*_PTR)
+  if ((err = cmd_init(drvdata)))
+    return err;
+
   iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR);
   iowrite32(HARDDOOM_INTR_MASK & ~HARDDOOM_INTR_PONG_ASYNC, BAR0 + HARDDOOM_INTR_ENABLE);
   iowrite32(0, BAR0 + HARDDOOM_FENCE_LAST);
-  iowrite32(HARDDOOM_ENABLE_ALL & ~HARDDOOM_ENABLE_FETCH_CMD, BAR0 + HARDDOOM_ENABLE);
+  iowrite32(drvdata->cmd_dma, BAR0 + HARDDOOM_CMD_READ_PTR);
+  iowrite32(drvdata->cmd_dma, BAR0 + HARDDOOM_CMD_WRITE_PTR);
+  iowrite32(HARDDOOM_ENABLE_ALL, BAR0 + HARDDOOM_ENABLE);
+
+  data = ioread32(drvdata->BAR0 + HARDDOOM_CMD_READ_PTR);
+  data = ioread32(drvdata->BAR0 + HARDDOOM_CMD_WRITE_PTR);
+  return 0;
+}
+
+static void stop_device(struct doom_prv *drvdata) {
+  void __iomem *BAR0 = drvdata->BAR0;
+
+  iowrite32(0, BAR0 + HARDDOOM_ENABLE);
+  iowrite32(0, BAR0 + HARDDOOM_INTR_ENABLE);
+  (void) ioread32(BAR0 + HARDDOOM_ENABLE);
+
+  cmd_destroy(drvdata);
 }
 
 static irqreturn_t irq_handler(int irq, void *dev) {
@@ -58,7 +80,6 @@ static irqreturn_t irq_handler(int irq, void *dev) {
   if (interrupts & HARDDOOM_INTR_FENCE) {
     spin_lock_irqsave(&drvdata->fence_lock, flags);
     drvdata->fence_last = ioread32(drvdata->BAR0 + HARDDOOM_FENCE_LAST);
-    printk(KERN_DEBUG "[doomirq] FENCE_WAIT up for %x\n", drvdata->fence_last);
     wake_up(&drvdata->fence_wait);
     spin_unlock_irqrestore(&drvdata->fence_lock, flags);
     interrupts &= ~HARDDOOM_INTR_FENCE;
@@ -87,17 +108,15 @@ static irqreturn_t irq_handler(int irq, void *dev) {
 
 // Initializes structures required for a char driver.
 static int init_device(struct pci_dev *dev, struct doom_prv *drvdata) {
-  unsigned long err;
+  int err;
   harddoom_cdev_init(&drvdata->cdev);
 
-  err = harddoom_device_create(&dev->dev, drvdata);
-  if (IS_ERR_VALUE(err)) {
+  if ((err = harddoom_device_create(&dev->dev, drvdata))) {
     printk(KERN_INFO "[doompci] init_drvdata error: doom_device_create\n");
     goto init_device_err;
   }
 
-  err = cdev_add(&drvdata->cdev, drvdata->dev, 1);
-  if (IS_ERR_VALUE(err)) {
+  if ((err = cdev_add(&drvdata->cdev, drvdata->dev, 1))) {
     printk(KERN_INFO "[doompci] init_drvdata error: cdev_add\n");
     goto init_device_err;
   }
@@ -114,9 +133,9 @@ static void destroy_device(struct doom_prv *drvdata) {
   cdev_del(&drvdata->cdev);
 }
 
-// Initializes fields in struct doom_prv.
+// Initializes fields in the struct doom_prv.
 static int init_drvdata(struct pci_dev *dev) {
-  unsigned long err;
+  int err;
   struct doom_prv *drvdata;
 
   drvdata = (struct doom_prv *) kzalloc(sizeof(struct doom_prv), GFP_KERNEL);
@@ -142,8 +161,7 @@ static int init_drvdata(struct pci_dev *dev) {
   spin_lock_init(&drvdata->fence_lock);
   init_waitqueue_head(&drvdata->fence_wait);
 
-  err = init_device(dev, drvdata);
-  if (IS_ERR_VALUE(err)) {
+  if ((err = init_device(dev, drvdata))) {
     printk(KERN_INFO "[doompci] init_drvdata error: init_device\n");
     goto init_drvdata_device_err;
   }
@@ -161,13 +179,14 @@ init_private_kzalloc_err:
 
 static void destroy_drvdata(struct pci_dev *dev) {
   struct doom_prv *drvdata = (struct doom_prv *) pci_get_drvdata(dev);
+  stop_device(drvdata);
   destroy_device(drvdata);
   pci_iounmap(dev, drvdata->BAR0);
   kfree(drvdata);
 }
 
 static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
-  unsigned long err;
+  long err;
   struct doom_prv *drvdata;
 
   err = pci_enable_device(dev);
@@ -182,8 +201,7 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_request_err;
   }
 
-  err = init_drvdata(dev);
-  if (IS_ERR_VALUE(err)) {
+  if ((err = init_drvdata(dev))) {
     printk(KERN_ERR "[doompci] probe error: init_private\n");
     goto probe_init_drvdata_err;
   }
@@ -210,9 +228,14 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_irq_err;
   }
 
-  load_microcode(drvdata->BAR0);
+  if ((err = start_device(drvdata))) {
+      printk(KERN_ERR "[doompci] probe error: start_device\n");
+      goto probe_start_err;
+  }
   return 0;
 
+probe_start_err:
+  free_irq(dev->irq, drvdata);
 probe_irq_err:
   pci_clear_master(dev);
 probe_dma_err:

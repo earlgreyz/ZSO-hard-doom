@@ -3,6 +3,10 @@
 
 #include "private.h"
 
-long doom_cmd(struct doom_prv *drvdata, uint32_t cmd);
+int cmd_init(struct doom_prv *drvdata);
+void cmd_destroy(struct doom_prv *drvdata);
+
+void cmd(struct doom_prv *drvdata, uint32_t cmd);
+void cmd_send(struct doom_prv *drvdata);
 
 #endif

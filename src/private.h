@@ -16,6 +16,9 @@ struct doom_prv {
   dev_t             dev;
 
   struct mutex      cmd_mutex;
+  uint32_t          cmd_idx;
+  uint32_t          *cmd;
+  dma_addr_t        cmd_dma;
 
   uint32_t          fifo_count;
   struct semaphore  fifo_wait;

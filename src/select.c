@@ -4,45 +4,30 @@
 #include "private.h"
 #include "select.h"
 
-static int select_surface_src(struct surface_prv *surface) {
-  int err;
-
+static void select_surface_src(struct surface_prv *surface) {
   if (surface->drvdata->surf_src == surface->surface_dma)
-    return 0;
+    return;
 
-  if ((err = doom_cmd(surface->drvdata, HARDDOOM_CMD_SURF_SRC_PT(surface->pt_dma))))
-    return err;
-
+  cmd(surface->drvdata, HARDDOOM_CMD_SURF_SRC_PT(surface->pt_dma));
   surface->drvdata->surf_src = surface->surface_dma;
-  return 0;
 }
 
-static int select_surface_dst(struct surface_prv *surface) {
-  int err;
-
+static void select_surface_dst(struct surface_prv *surface) {
   if (surface->drvdata->surf_dst == surface->surface_dma)
-    return 0;
+    return;
 
-  if ((err = doom_cmd(surface->drvdata, HARDDOOM_CMD_SURF_DST_PT(surface->pt_dma))))
-    return err;
-
+  cmd(surface->drvdata, HARDDOOM_CMD_SURF_DST_PT(surface->pt_dma));
   surface->dirty = true;
   surface->drvdata->surf_dst = surface->surface_dma;
-  return 0;
 }
 
-static int select_surface_dims(struct doom_prv *drvdata, uint32_t width, uint32_t height) {
-  int err;
-
+static void select_surface_dims(struct doom_prv *drvdata, uint32_t width, uint32_t height) {
   if (drvdata->surf_width == width && drvdata->surf_height == height)
-    return 0;
+    return;
 
-  if ((err = doom_cmd(drvdata, HARDDOOM_CMD_SURF_DIMS(width, height))))
-    return err;
-
+  cmd(drvdata, HARDDOOM_CMD_SURF_DIMS(width, height));
   drvdata->surf_width = width;
   drvdata->surf_height = height;
-  return 0;
 }
 
 int select_surface(struct surface_prv *surface, int flags) {
@@ -52,31 +37,23 @@ int select_surface(struct surface_prv *surface, int flags) {
     return -EINVAL;
 
   if (flags & SELECT_SURF_SRC)
-    if ((err = select_surface_src(surface)))
-      return err;
+    select_surface_src(surface);
 
   if (flags & SELECT_SURF_DST)
-    if ((err = select_surface_dst(surface)))
-      return err;
+    select_surface_dst(surface);
 
   if (flags & SELECT_SURF_DIMS)
-    return select_surface_dims(surface->drvdata, surface->width, surface->height);
+    select_surface_dims(surface->drvdata, surface->width, surface->height);
 
   return 0;
 }
 
 int select_texture(struct texture_prv *texture) {
-  int err;
-
   if (texture->drvdata->texture == texture->texture_dma)
     return 0;
 
-  if ((err = doom_cmd(texture->drvdata, HARDDOOM_CMD_TEXTURE_PT(texture->pt_dma))))
-    return err;
-
-  if ((err = doom_cmd(texture->drvdata, HARDDOOM_CMD_TEXTURE_DIMS(texture->size, texture->height))))
-    return err;
-
+  cmd(texture->drvdata, HARDDOOM_CMD_TEXTURE_PT(texture->pt_dma));
+  cmd(texture->drvdata, HARDDOOM_CMD_TEXTURE_DIMS(texture->size, texture->height));
   texture->drvdata->texture = texture->texture_dma;
   return 0;
 }
@@ -95,9 +72,7 @@ int select_colormap(struct colormaps_prv *colormaps, uint8_t idx, int flags) {
     if (colormaps->drvdata->colormap == addr)
       return 0;
 
-    if ((err = doom_cmd(colormaps->drvdata, HARDDOOM_CMD_COLORMAP_ADDR(addr))))
-      return err;
-
+    cmd(colormaps->drvdata, HARDDOOM_CMD_COLORMAP_ADDR(addr));
     colormaps->drvdata->colormap = addr;
   }
 
@@ -105,9 +80,7 @@ int select_colormap(struct colormaps_prv *colormaps, uint8_t idx, int flags) {
     if (colormaps->drvdata->translation == addr)
       return 0;
 
-    if ((err = doom_cmd(colormaps->drvdata, HARDDOOM_CMD_TRANSLATION_ADDR(addr))))
-      return err;
-
+    cmd(colormaps->drvdata, HARDDOOM_CMD_TRANSLATION_ADDR(addr));
     colormaps->drvdata->translation = addr;
   }
 
