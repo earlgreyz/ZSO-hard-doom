@@ -6,6 +6,8 @@
 #include <linux/mutex.h>
 #include <linux/pci.h>
 #include <linux/semaphore.h>
+#include <linux/spinlock.h>
+#include <linux/wait.h>
 
 #include "../include/harddoom.h"
 #include "../include/doomcode.h"
@@ -31,12 +33,14 @@ static void load_microcode(void __iomem *BAR0) {
   // Initialize command iomem here (CMD_*_PTR)
   iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR);
   iowrite32(HARDDOOM_INTR_MASK & ~HARDDOOM_INTR_PONG_ASYNC, BAR0 + HARDDOOM_INTR_ENABLE);
+  iowrite32(0, BAR0 + HARDDOOM_FENCE_LAST);
   iowrite32(HARDDOOM_ENABLE_ALL & ~HARDDOOM_ENABLE_FETCH_CMD, BAR0 + HARDDOOM_ENABLE);
 }
 
 static irqreturn_t irq_handler(int irq, void *dev) {
   struct doom_prv *drvdata = (struct doom_prv *) dev;
   unsigned int interrupts;
+  unsigned long flags;
 
   interrupts = ioread32(drvdata->BAR0 + HARDDOOM_INTR);
   if (interrupts == 0x00) {
@@ -46,26 +50,36 @@ static irqreturn_t irq_handler(int irq, void *dev) {
   // Enable interrupts so they can be reported again.
   iowrite32(interrupts, drvdata->BAR0 + HARDDOOM_INTR);
 
-  // Handle PONG_SYNC
-  if (interrupts & HARDDOOM_INTR_PONG_SYNC) {
-    up(&drvdata->ping_wait);
-    up(&drvdata->ping_queue);
-  }
-
   if (interrupts & HARDDOOM_INTR_PONG_ASYNC) {
     up(&drvdata->fifo_wait);
+    interrupts &= ~HARDDOOM_INTR_PONG_ASYNC;
+  }
+
+  if (interrupts & HARDDOOM_INTR_FENCE) {
+    spin_lock_irqsave(&drvdata->fence_lock, flags);
+    drvdata->fence_last = ioread32(drvdata->BAR0 + HARDDOOM_FENCE_LAST);
+    printk(KERN_DEBUG "[doomirq] FENCE_WAIT up for %x\n", drvdata->fence_last);
+    wake_up(&drvdata->fence_wait);
+    spin_unlock_irqrestore(&drvdata->fence_lock, flags);
+    interrupts &= ~HARDDOOM_INTR_FENCE;
   }
 
   // Handle FE_ERROR
   if (interrupts & HARDDOOM_INTR_FE_ERROR) {
-    printk(KERN_INFO "[doomirq] FE_ERROR %x for command %x\n", \
+    printk(KERN_ERR "[doomirq] FE_ERROR %x for command %x\n", \
       ioread32(drvdata->BAR0 + HARDDOOM_FE_ERROR_CODE), \
       ioread32(drvdata->BAR0 + HARDDOOM_FE_ERROR_CMD));
+    interrupts &= ~HARDDOOM_INTR_FE_ERROR;
+  }
+
+  if (interrupts & HARDDOOM_INTR_FIFO_OVERFLOW) {
+    printk(KERN_ERR "[doomirq] FIFO OVERFLOW occurred\n");
+    interrupts &= ~HARDDOOM_INTR_FIFO_OVERFLOW;
   }
 
   // Any other interrupt
-  if (interrupts & ~(HARDDOOM_INTR_PONG_SYNC | HARDDOOM_INTR_FE_ERROR | HARDDOOM_INTR_PONG_ASYNC)) {
-    printk(KERN_INFO "[doomirq] interrupt %x\n", interrupts);
+  if (interrupts) {
+    printk(KERN_ERR "[doomirq] Unknown interrupt occurred %x\n", interrupts);
   }
 
   return IRQ_HANDLED;
@@ -124,8 +138,9 @@ static int init_drvdata(struct pci_dev *dev) {
   mutex_init(&drvdata->cmd_mutex);
   sema_init(&drvdata->fifo_wait, 0);
   sema_init(&drvdata->fifo_queue, 1);
-  sema_init(&drvdata->ping_wait, 1);
-  sema_init(&drvdata->ping_queue, 1);
+
+  spin_lock_init(&drvdata->fence_lock);
+  init_waitqueue_head(&drvdata->fence_wait);
 
   err = init_device(dev, drvdata);
   if (IS_ERR_VALUE(err)) {

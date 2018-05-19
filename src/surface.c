@@ -22,6 +22,22 @@
 #define SURFACE_MIN_HEIGHT     1
 #define SURFACE_WIDTH_MASK  0x7f
 
+static long fence_next(struct doom_prv *drvdata) {
+  long err = 0;
+  unsigned long flags;
+  uint32_t last;
+
+  spin_lock_irqsave(&drvdata->fence_lock, flags);
+  last = drvdata->fence;
+
+  drvdata->fence = (last + 1) % HARDDOOM_FENCE_MASK;
+  if ((err = doom_cmd(drvdata, HARDDOOM_CMD_FENCE(drvdata->fence))))
+    drvdata->fence = last;
+
+  spin_unlock_irqrestore(&drvdata->fence_lock, flags);
+  return err;
+}
+
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
   long err;
 
@@ -54,6 +70,9 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_COPY_RECT(rect->width, rect->height))))
       goto copy_rects_rect_err;
   }
+
+  if ((err = fence_next(prv->drvdata)))
+    goto copy_rects_rect_err;
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
@@ -84,6 +103,9 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FILL_RECT(rect->width, rect->height))))
       goto fill_rects_rect_err;
   }
+
+  if ((err = fence_next(prv->drvdata)))
+    goto fill_rects_rect_err;
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
@@ -116,6 +138,9 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_LINE)))
       goto fill_lines_line_err;
   }
+
+  if ((err = fence_next(prv->drvdata)))
+    goto fill_lines_line_err;
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
@@ -141,6 +166,8 @@ static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl
   if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_FLAT_ADDR(flat_prv->flat_dma))))
     goto draw_background_err;
   if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_BACKGROUND)))
+    goto draw_background_err;
+  if ((err = fence_next(prv->drvdata)))
     goto draw_background_err;
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return 0;
@@ -212,6 +239,9 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_COLUMN(column->texture_offset))))
       goto draw_columns_column_err;
   }
+
+  if ((err = fence_next(prv->drvdata)))
+    goto draw_columns_column_err;
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
@@ -281,6 +311,9 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
     if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_DRAW_SPAN)))
       goto draw_spans_span_err;
   }
+
+  if ((err = fence_next(prv->drvdata)))
+    goto draw_spans_span_err;
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
@@ -340,15 +373,26 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
   size_t copied, size = prv->width * prv->height;
 
+  unsigned long flags;
+  uint32_t fence, fence_last;
+
   if (*filepos > size || *filepos < 0)
     return 0;
 
-  // First queue to see if noone is pinging atm
-  down(&prv->drvdata->ping_queue);
-  // Send the ping and wait for the interrupt to wake us up
-  if ((err = doom_cmd(prv->drvdata, HARDDOOM_CMD_PING_SYNC)))
-    return -EFAULT;
-  down(&prv->drvdata->ping_wait);
+  spin_lock_irqsave(&prv->drvdata->fence_lock, flags);
+  fence = prv->drvdata->fence;
+  iowrite32(HARDDOOM_INTR_FENCE, prv->drvdata->BAR0 + HARDDOOM_INTR);
+  iowrite32(prv->drvdata->fence, prv->drvdata->BAR0 + HARDDOOM_FENCE_WAIT);
+
+  fence_last = ioread32(prv->drvdata->BAR0 + HARDDOOM_FENCE_LAST);
+  prv->drvdata->fence_last = fence_last;
+  spin_unlock_irqrestore(&prv->drvdata->fence_lock, flags);
+
+  if (fence_last != fence) {
+    printk(KERN_DEBUG "[doom_surface] FENCE_WAIT for %x\n", fence);
+    wait_event(prv->drvdata->fence_wait, prv->drvdata->fence_last == fence);
+    printk(KERN_DEBUG "[doom_surface] FENCE_WAIT woke up on %x\n", fence);
+  }
 
   if (count > size - *filepos)
     count = size - *filepos;

@@ -6,7 +6,7 @@
 #include "cmd.h"
 
 #define DOOM_FIFO_SIZE 512
-#define DOOM_PING_FREQ (DOOM_FIFO_SIZE / 4)
+#define DOOM_PING_FREQ (DOOM_FIFO_SIZE / 8)
 
 static void fifo_wait(struct doom_prv *drvdata) {
   unsigned int fifo_free, enabled;
@@ -30,7 +30,7 @@ static void fifo_wait(struct doom_prv *drvdata) {
 static void fifo_send(struct doom_prv *drvdata, uint32_t cmd) {
   unsigned int fifo_free;
   fifo_free = ioread32(drvdata->BAR0 + HARDDOOM_FIFO_FREE);
-  if (fifo_free < 1)
+  if (fifo_free <= 1)
     fifo_wait(drvdata);
   iowrite32(cmd, drvdata->BAR0 + HARDDOOM_FIFO_SEND);
 }
