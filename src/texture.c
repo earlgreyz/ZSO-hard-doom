@@ -16,7 +16,7 @@
 
 static int texture_release(struct inode *ino, struct file *file) {
   struct texture_prv *prv = (struct texture_prv *) file->private_data;
-  dma_free_coherent(prv->drvdata->pci, prv->size, prv->texture, prv->texture_dma);
+  dma_free_coherent(prv->drvdata->pci, prv->memsize, prv->texture, prv->texture_dma);
   kfree(prv);
   return 0;
 }
@@ -56,9 +56,9 @@ static int allocate_texture(struct texture_prv *prv, size_t size) {
   }
 
   pt_size = pt_len * sizeof(struct pt_entry);
-  prv->size = aligned_size + pt_size;
+  prv->memsize = aligned_size + pt_size;
 
-  prv->texture = dma_alloc_coherent(prv->drvdata->pci, prv->size, &prv->texture_dma, GFP_KERNEL);
+  prv->texture = dma_alloc_coherent(prv->drvdata->pci, prv->memsize, &prv->texture_dma, GFP_KERNEL);
   if (prv->texture == NULL) {
     return -ENOMEM;
   }
@@ -74,7 +74,7 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
 
   struct texture_prv *prv;
   int fd;
-  size_t size;
+  size_t aligned_size;
 
   if (args->size > TEXTURE_MAX_SIZE || args->height > TEXTURE_MAX_HEIGHT) {
     return -EOVERFLOW;
@@ -87,15 +87,15 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
     goto create_kmalloc_err;
   }
 
-  size = ALIGN(args->size, TEXTURE_ALIGNMENT);
+  aligned_size = ALIGN(args->size, TEXTURE_ALIGNMENT);
 
   *prv = (struct texture_prv){
     .drvdata = drvdata,
     .height = args->height,
-    .size_m1 = (size >> 8) - 1,
+    .size = args->size,
   };
 
-  if ((err = allocate_texture(prv, size))) {
+  if ((err = allocate_texture(prv, aligned_size))) {
     printk(KERN_WARNING "[doom_texture] texture_create error: allocate_texture\n");
     goto create_allocate_err;
   }
@@ -107,7 +107,7 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
     goto create_copy_err;
   }
 
-  memset(prv->texture + args->size, 0, size - args->size);
+  memset(prv->texture + args->size, 0, aligned_size - args->size);
 
   fd = anon_inode_getfd(TEXTURE_FILE_TYPE, &texture_ops, prv, O_RDONLY);
   if (fd < 0) {
@@ -120,7 +120,7 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
 
 create_getfd_err:
 create_copy_err:
-  dma_free_coherent(prv->drvdata->pci, prv->size, prv->texture, prv->texture_dma);
+  dma_free_coherent(prv->drvdata->pci, prv->memsize, prv->texture, prv->texture_dma);
 create_allocate_err:
   kfree(prv);
 create_kmalloc_err:

@@ -53,7 +53,6 @@ static irqreturn_t irq_handler(int irq, void *dev) {
   }
 
   if (interrupts & HARDDOOM_INTR_PONG_ASYNC) {
-    printk(KERN_INFO "[doomirq] PONG_ASYNC\n");
     up(&drvdata->fifo_wait);
   }
 

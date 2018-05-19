@@ -74,7 +74,7 @@ int select_texture(struct texture_prv *texture) {
   if ((err = doom_cmd(texture->drvdata, HARDDOOM_CMD_TEXTURE_PT(texture->pt_dma))))
     return err;
 
-  if ((err = doom_cmd(texture->drvdata, HARDDOOM_CMD_TEXTURE_DIMS(texture->size_m1, texture->height))))
+  if ((err = doom_cmd(texture->drvdata, HARDDOOM_CMD_TEXTURE_DIMS(texture->size, texture->height))))
     return err;
 
   texture->drvdata->texture = texture->texture_dma;

@@ -13,9 +13,9 @@ struct texture_prv {
   struct doom_prv   *drvdata;    // Harddoom driver data
 
   uint16_t          height;      // Texture height in texels
-  uint32_t          size_m1;     // Texture size in 256 B blocks -1
+  uint32_t          size;        // Texture size
 
-  size_t            size;        // Allocated memory size
+  size_t            memsize;     // Allocated memory size
   void              *texture;    // Allocated texture ptr
   struct pt_entry   *pt;         // Allocated page table ptr
 
