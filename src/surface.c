@@ -14,6 +14,7 @@
 #include "select.h"
 #include "surface.h"
 #include "texture.h"
+#include "validate.h"
 
 #define SURFACE_FILE_TYPE "surface"
 
@@ -40,7 +41,7 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
   long err;
 
   long i;
-  struct doomdev_copy_rect *rect;
+  struct doomdev_copy_rect __user *rect;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   struct surface_prv *src_prv;
@@ -50,12 +51,11 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
 
   mutex_lock(&prv->drvdata->cmd_mutex);
   if ((err = select_surface(prv, SELECT_SURF_DST | SELECT_SURF_DIMS)))
-    goto fill_rects_surf_err;
+    goto fill_rects_err;
   if ((err = select_surface(src_prv, SELECT_SURF_SRC)))
-    goto fill_rects_surf_err;
+    goto fill_rects_err;
   if (src_prv->dirty) {
-    if ((err = select_surface(src_prv, HARDDOOM_CMD_INTERLOCK)))
-      goto fill_rects_surf_err;
+    cmd(prv->drvdata, HARDDOOM_CMD_INTERLOCK);
     src_prv->dirty = false;
   }
 
@@ -63,6 +63,11 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
 
   for (i = 0; i < args->rects_num; ++i) {
     rect = (struct doomdev_copy_rect *) args->rects_ptr + i;
+    if (!is_valid_copy_rect(prv, src_prv, rect)) {
+      printk(KERN_DEBUG "Invalid rect in surface_copy_rects\n");
+      err = -EINVAL;
+      goto fill_rects_rect_err;
+    }
     cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y));
     cmd(prv->drvdata, HARDDOOM_CMD_XY_B(rect->pos_src_x, rect->pos_src_y));
     cmd(prv->drvdata, HARDDOOM_CMD_COPY_RECT(rect->width, rect->height));
@@ -73,7 +78,9 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
-fill_rects_surf_err:
+fill_rects_rect_err:
+  err = i == 0 ? err : i;
+fill_rects_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
@@ -82,17 +89,22 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
   long err;
 
   long i;
-  struct doomdev_fill_rect *rect;
+  struct doomdev_fill_rect __user *rect;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
   if ((err = select_surface(prv, SELECT_SURF_DST | SELECT_SURF_DIMS)))
-    goto fill_rects_surf_err;
+    goto fill_rects_err;
 
   cmd_send(prv->drvdata);
 
   for (i = 0; i < args->rects_num; ++i) {
-    rect = (struct doomdev_fill_rect *) args->rects_ptr + i;
+    rect = (struct doomdev_fill_rect __user *) args->rects_ptr + i;
+    if (!is_valid_fill_rect(prv, rect)) {
+      printk(KERN_DEBUG "Invalid rect in surface_fill_rects\n");
+      err = -EINVAL;
+      goto fill_rects_rect_err;
+    }
     cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(rect->color));
     cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y));
     cmd(prv->drvdata, HARDDOOM_CMD_FILL_RECT(rect->width, rect->height));
@@ -103,7 +115,9 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
-fill_rects_surf_err:
+fill_rects_rect_err:
+  err = i == 0 ? err : i;
+fill_rects_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
@@ -112,17 +126,22 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
   long err;
 
   long i;
-  struct doomdev_line *line;
+  struct doomdev_line __user *line;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   mutex_lock(&prv->drvdata->cmd_mutex);
   if ((err = select_surface(prv, SELECT_SURF_DST | SELECT_SURF_DIMS)))
-    goto fill_lines_dst_err;
+    goto fill_lines_err;
 
   cmd_send(prv->drvdata);
 
   for (i = 0; i < args->lines_num; ++i) {
-    line = (struct doomdev_line *) args->lines_ptr + i;
+    line = (struct doomdev_line __user *) args->lines_ptr + i;
+    if (!is_valid_draw_line(prv, line)) {
+      printk(KERN_DEBUG "Invalid line in surface_draw_lines\n");
+      err = -EINVAL;
+      goto fill_lines_line_err;
+    }
     cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line->color));
     cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line->pos_a_x, line->pos_a_y));
     cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line->pos_b_x, line->pos_b_y));
@@ -134,7 +153,9 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return i;
 
-fill_lines_dst_err:
+fill_lines_line_err:
+  err = i == 0 ? err : i;
+fill_lines_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
@@ -166,7 +187,7 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   long err;
 
   long i;
-  struct doomdev_column *column;
+  struct doomdev_column __user *column;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   bool use_texture, use_translations, use_colormaps;
@@ -205,7 +226,12 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   cmd_send(prv->drvdata);
 
   for (i = 0; i < args->columns_num; ++i) {
-    column = (struct doomdev_column *) args->columns_ptr + i;
+    column = (struct doomdev_column __user *) args->columns_ptr + i;
+    if (!is_valid_draw_column(prv, column)) {
+      printk(KERN_DEBUG "Invalid column in surface_draw_columns\n");
+      err = -EINVAL;
+      goto draw_columns_column_err;
+    }
     cmd(prv->drvdata, HARDDOOM_CMD_XY_A(column->x, column->y1));
     cmd(prv->drvdata, HARDDOOM_CMD_XY_B(column->x, column->y2));
 
@@ -227,7 +253,7 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   return i;
 
 draw_columns_column_err:
-  err = i == 0? -EFAULT: i;
+  err = i == 0 ? err : i;
 draw_columns_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
@@ -237,7 +263,7 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
   long err;
 
   long i;
-  struct doomdev_span *span;
+  struct doomdev_span __user *span;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   bool use_translations, use_colormaps;
@@ -272,7 +298,12 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
   cmd_send(prv->drvdata);
 
   for (i = 0; i < args->spans_num; ++i) {
-    span = (struct doomdev_span *) args->spans_ptr + i;
+    span = (struct doomdev_span __user *) args->spans_ptr + i;
+    if (!is_valid_draw_span(prv, span)) {
+      printk(KERN_DEBUG "Invalid span in surface_draw_spans\n");
+      err = -EINVAL;
+      goto draw_spans_span_err;
+    }
     cmd(prv->drvdata, HARDDOOM_CMD_USTART(span->ustart));
     cmd(prv->drvdata, HARDDOOM_CMD_USTEP(span->ustep));
     cmd(prv->drvdata, HARDDOOM_CMD_VSTART(span->vstart));
@@ -293,7 +324,7 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
   return i;
 
 draw_spans_span_err:
-  err = i == 0? -EFAULT: i;
+  err = i == 0 ? err : i;
 draw_spans_err:
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;

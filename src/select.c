@@ -31,8 +31,6 @@ static void select_surface_dims(struct doom_prv *drvdata, uint32_t width, uint32
 }
 
 int select_surface(struct surface_prv *surface, int flags) {
-  int err;
-
   if (flags & SELECT_SURF_SRC & SELECT_SURF_DST)
     return -EINVAL;
 
