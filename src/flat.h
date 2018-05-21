@@ -28,7 +28,7 @@ long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *arg
  * @success stores a result in @param res and returns 0.
  * @failure returns a negated error code.
  **/
-int flat_get(struct doom_prv *drvdata, int fd, struct flat_prv **res);
+int flat_get(struct doom_prv *drvdata, struct fd *fd, struct flat_prv **res);
 
 /**
  * Checks if a given fd is a flat file descriptor.

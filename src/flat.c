@@ -25,15 +25,13 @@ bool is_flat_fd(struct fd *fd) {
   return (fd->file != NULL) && (fd->file->f_op == &flat_ops);
 }
 
-int flat_get(struct doom_prv *drvdata, int fd, struct flat_prv **res) {
-  struct fd flat_fd;
+int flat_get(struct doom_prv *drvdata, struct fd *fd, struct flat_prv **res) {
   struct flat_prv *flat;
 
-  flat_fd = fdget(fd);
-  if (!is_flat_fd(&flat_fd))
+  if (!is_flat_fd(fd))
     return -EINVAL;
 
-  flat = (struct flat_prv *) flat_fd.file->private_data;
+  flat = (struct flat_prv *) fd->file->private_data;
   if (flat->drvdata != drvdata)
     return -EINVAL;
 

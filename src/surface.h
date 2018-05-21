@@ -43,6 +43,6 @@ bool is_surface_fd(struct fd *fd);
  * @success stores a result in @param res and returns 0.
  * @failure returns a negated error code.
  **/
-int surface_get(struct doom_prv *drvdata, int fd, struct surface_prv **res);
+int surface_get(struct doom_prv *drvdata, struct fd *fd, struct surface_prv **res);
 
 #endif

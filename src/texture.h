@@ -41,6 +41,6 @@ bool is_texture_fd(struct fd *fd);
  * @success stores a result in @param res and returns 0.
  * @failure returns a negated error code.
  **/
-int texture_get(struct doom_prv *drvdata, int fd, struct texture_prv **res);
+int texture_get(struct doom_prv *drvdata, struct fd *fd, struct texture_prv **res);
 
 #endif

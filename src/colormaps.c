@@ -27,15 +27,13 @@ bool is_colormaps_fd(struct fd *fd) {
   return (fd->file != NULL) && (fd->file->f_op == &colormaps_ops);
 }
 
-int colormaps_get(struct doom_prv *drvdata, int fd, struct colormaps_prv **res) {
-  struct fd colormaps_fd;
+int colormaps_get(struct doom_prv *drvdata, struct fd *fd, struct colormaps_prv **res) {
   struct colormaps_prv *colormaps;
 
-  colormaps_fd = fdget(fd);
-  if (!is_colormaps_fd(&colormaps_fd))
+  if (!is_colormaps_fd(fd))
     return -EINVAL;
 
-  colormaps = (struct colormaps_prv *) colormaps_fd.file->private_data;
+  colormaps = (struct colormaps_prv *) fd->file->private_data;
   if (colormaps->drvdata != drvdata)
     return -EINVAL;
 

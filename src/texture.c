@@ -30,15 +30,13 @@ bool is_texture_fd(struct fd *fd) {
   return (fd->file != NULL) && (fd->file->f_op == &texture_ops);
 }
 
-int texture_get(struct doom_prv *drvdata, int fd, struct texture_prv **res) {
-  struct fd texture_fd;
+int texture_get(struct doom_prv *drvdata, struct fd *fd, struct texture_prv **res) {
   struct texture_prv *texture;
 
-  texture_fd = fdget(fd);
-  if (!is_texture_fd(&texture_fd))
+  if (!is_texture_fd(fd))
     return -EINVAL;
 
-  texture = (struct texture_prv *) texture_fd.file->private_data;
+  texture = (struct texture_prv *) fd->file->private_data;
   if (texture->drvdata != drvdata)
     return -EINVAL;
 
