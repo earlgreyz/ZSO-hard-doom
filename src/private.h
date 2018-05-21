@@ -20,6 +20,7 @@ struct doom_prv {
   uint32_t          *cmd;
   dma_addr_t        cmd_dma;
 
+  uint8_t           fifo_free;
   uint32_t          fifo_count;
   struct semaphore  fifo_wait;
   struct semaphore  fifo_queue;
