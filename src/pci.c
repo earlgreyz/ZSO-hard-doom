@@ -80,7 +80,7 @@ static irqreturn_t irq_handler(int irq, void *dev) {
   if (interrupts & HARDDOOM_INTR_FENCE) {
     spin_lock_irqsave(&drvdata->fence_lock, flags);
     drvdata->fence_last = ioread32(drvdata->BAR0 + HARDDOOM_FENCE_LAST);
-    wake_up(&drvdata->fence_wait);
+    wake_up_all(&drvdata->fence_wait);
     spin_unlock_irqrestore(&drvdata->fence_lock, flags);
     interrupts &= ~HARDDOOM_INTR_FENCE;
   }

@@ -90,7 +90,8 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
 
 cmd_err:
   err = i == 0 ? err : i;
-  (void) fence_next(prv->drvdata);
+  if (fence_next(prv->drvdata))
+    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
 mutex_err:
 src_err:
@@ -132,7 +133,8 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
 
 cmd_err:
   err = i == 0 ? err : i;
-  (void) fence_next(prv->drvdata);
+  if (fence_next(prv->drvdata))
+    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
@@ -172,7 +174,8 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
 
 cmd_err:
   err = i == 0 ? err : i;
-  (void) fence_next(prv->drvdata);
+  if (fence_next(prv->drvdata))
+    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
@@ -203,7 +206,8 @@ static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl
   return 0;
 
 cmd_err:
-  (void) fence_next(prv->drvdata);
+  if (fence_next(prv->drvdata))
+    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
 mutex_err:
 flat_err:
@@ -297,7 +301,8 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
 
 cmd_err:
   err = i == 0 ? err : i;
-  (void) fence_next(prv->drvdata);
+  if (fence_next(prv->drvdata))
+    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
 mutex_err:
 colormaps_err:
@@ -391,7 +396,8 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
 
 cmd_err:
   err = i == 0 ? err : i;
-  (void) fence_next(prv->drvdata);
+  if (fence_next(prv->drvdata))
+    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
 mutex_err:
 colormaps_err:
@@ -448,6 +454,10 @@ static loff_t surface_llseek(struct file *file, loff_t filepos, int whence) {
   return pos;
 }
 
+static bool fence_passed(uint32_t fence, uint32_t fence_last) {
+  return fence_last >= fence || (fence_last < 0x1000000 && fence > 0x03000000);
+}
+
 static ssize_t surface_read(struct file *file, char __user *buf, size_t count, loff_t *filepos) {
   unsigned long err;
 
@@ -469,9 +479,13 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
   prv->drvdata->fence_last = fence_last;
   spin_unlock_irqrestore(&prv->drvdata->fence_lock, flags);
 
-  if (fence_last != fence) {
-    if ((err = wait_event_interruptible(prv->drvdata->fence_wait, prv->drvdata->fence_last == fence)))
-      return err;
+  if (!fence_passed(fence, fence_last)) {
+    do {
+      err = wait_event_interruptible_timeout(prv->drvdata->fence_wait, \
+          fence_passed(fence, prv->drvdata->fence_last), HZ / 10);
+      if (err == -ERESTARTSYS)
+        return err;
+    } while (err == 0);
   }
 
   if (count > size - *filepos)
