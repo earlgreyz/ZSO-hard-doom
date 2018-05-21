@@ -9,6 +9,9 @@
 #define DOOM_FIFO_SIZE   ((DOOM_FIFO_LENGTH + 1) * sizeof(uint32_t))
 #define DOOM_PING_FREQ   (DOOM_FIFO_LENGTH / 8)
 
+#undef _MUST
+#define _MUST(s) if ((err = (s))) return err
+
 int cmd_init(struct doom_prv *drvdata) {
   drvdata->cmd = (uint32_t *) dma_alloc_coherent(drvdata->pci, DOOM_FIFO_SIZE, &drvdata->cmd_dma, GFP_KERNEL);
   if (drvdata->cmd == NULL)
@@ -37,7 +40,8 @@ static bool cmd_can_insert(struct doom_prv *drvdata, uint8_t n) {
       || (read_idx > drvdata->cmd_idx && !flip && next_idx < read_idx));
 }
 
-void cmd_wait(struct doom_prv *drvdata, uint8_t n) {
+int cmd_wait(struct doom_prv *drvdata, uint8_t n) {
+  int err;
   unsigned int enabled;
 
   iowrite32(HARDDOOM_INTR_PONG_ASYNC, drvdata->BAR0 + HARDDOOM_INTR);
@@ -46,7 +50,7 @@ void cmd_wait(struct doom_prv *drvdata, uint8_t n) {
     enabled |= HARDDOOM_INTR_PONG_ASYNC;
     iowrite32(enabled, drvdata->BAR0 + HARDDOOM_INTR_ENABLE);
 
-    down(&drvdata->fifo_wait);
+    _MUST(down_interruptible(&drvdata->fifo_wait));
 
     enabled = enabled & ~HARDDOOM_INTR_PONG_ASYNC;
     iowrite32(enabled, drvdata->BAR0 + HARDDOOM_INTR_ENABLE);
@@ -54,30 +58,40 @@ void cmd_wait(struct doom_prv *drvdata, uint8_t n) {
   }
 
   drvdata->fifo_free = n;
+  return 0;
 }
 
-static void cmd_send(struct doom_prv *drvdata, uint32_t cmd) {
+static int cmd_insert(struct doom_prv *drvdata, uint32_t cmd) {
+  int err;
+
   if (drvdata->fifo_free < 1) {
-    printk(KERN_NOTICE "[cmd] cmd_send called without cmd_wait!");
-    cmd_wait(drvdata, 1);
+    printk(KERN_NOTICE "[cmd] cmd_insert called without cmd_wait!");
+    _MUST(cmd_wait(drvdata, 1));
   }
 
   drvdata->cmd[drvdata->cmd_idx] = cmd;
   drvdata->cmd_idx = (drvdata->cmd_idx + 1) % DOOM_FIFO_LENGTH;
   drvdata->fifo_free--;
+  return 0;
 }
 
-void cmd(struct doom_prv *drvdata, uint32_t cmd) {
-  cmd_send(drvdata, cmd);
+int cmd(struct doom_prv *drvdata, uint32_t cmd) {
+  int err;
+
+  _MUST(cmd_insert(drvdata, cmd));
 
   drvdata->fifo_count = (drvdata->fifo_count + 1) % DOOM_PING_FREQ;
   if (drvdata->fifo_count == 0) {
-    cmd_wait(drvdata, drvdata->fifo_free + 1);
-    cmd_send(drvdata, HARDDOOM_CMD_PING_ASYNC);
+    _MUST(cmd_wait(drvdata, drvdata->fifo_free + 1));
+    _MUST(cmd_insert(drvdata, HARDDOOM_CMD_PING_ASYNC));
   }
+
+  return 0;
 }
 
 void cmd_commit(struct doom_prv *drvdata) {
   dma_addr_t addr = drvdata->cmd_dma + drvdata->cmd_idx * sizeof(uint32_t);
   iowrite32(addr, drvdata->BAR0 + HARDDOOM_CMD_WRITE_PTR);
 }
+
+#undef _MUST

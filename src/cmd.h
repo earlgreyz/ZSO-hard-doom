@@ -10,7 +10,7 @@ void cmd_destroy(struct doom_prv *drvdata);
  * Blocks the execution until at least @param n commands can be inserted
  * to the device queue with the `cmd` function.
  **/
-void cmd_wait(struct doom_prv *drvdata, uint8_t n);
+int __must_check cmd_wait(struct doom_prv *drvdata, uint8_t n);
 
 /**
  * Inserts cmd at the end of the queue.
@@ -18,7 +18,7 @@ void cmd_wait(struct doom_prv *drvdata, uint8_t n);
  * `cmd_send`. To achieve better performence it is recommended to use wait and
  * send functions once per block of the commands.
  **/
-void cmd(struct doom_prv *drvdata, uint32_t cmd);
+int __must_check cmd(struct doom_prv *drvdata, uint32_t cmd);
 
 /**
  * Commits the commands queue to the device, moving WRITE_PTR to the most

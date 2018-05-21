@@ -24,7 +24,7 @@
  * @success returns 0.
  * @failure returns negated error code.
  **/
-int select_surface(struct surface_prv *surface, int flags);
+int __must_check select_surface(struct surface_prv *surface, int flags);
 
 /**
  * Selects texture if it differs from the currently selected.
@@ -33,7 +33,7 @@ int select_surface(struct surface_prv *surface, int flags);
  * @success returns 0.
  * @failure returns negated error code.
  **/
-int select_texture(struct texture_prv *texture);
+int __must_check select_texture(struct texture_prv *texture);
 
 #define SELECT_CMAP_COLOR  0x01
 #define SELECT_CMAP_TRANS  0x02
@@ -49,6 +49,6 @@ int select_texture(struct texture_prv *texture);
  * @success returns 0.
  * @failure returns negated error code.
  **/
-int select_colormap(struct colormaps_prv *colormaps, uint8_t idx, int flags);
+int __must_check select_colormap(struct colormaps_prv *colormaps, uint8_t idx, int flags);
 
 #endif
