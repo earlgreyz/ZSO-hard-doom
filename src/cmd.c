@@ -68,7 +68,6 @@ static void cmd_send(struct doom_prv *drvdata, uint32_t cmd) {
 }
 
 void cmd(struct doom_prv *drvdata, uint32_t cmd) {
-  down(&drvdata->fifo_queue);
   cmd_send(drvdata, cmd);
 
   drvdata->fifo_count = (drvdata->fifo_count + 1) % DOOM_PING_FREQ;
@@ -76,13 +75,9 @@ void cmd(struct doom_prv *drvdata, uint32_t cmd) {
     cmd_wait(drvdata, drvdata->fifo_free + 1);
     cmd_send(drvdata, HARDDOOM_CMD_PING_ASYNC);
   }
-
-  up(&drvdata->fifo_queue);
 }
 
 void cmd_commit(struct doom_prv *drvdata) {
   dma_addr_t addr = drvdata->cmd_dma + drvdata->cmd_idx * sizeof(uint32_t);
-  down(&drvdata->fifo_queue);
   iowrite32(addr, drvdata->BAR0 + HARDDOOM_CMD_WRITE_PTR);
-  up(&drvdata->fifo_queue);
 }

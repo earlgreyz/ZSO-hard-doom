@@ -156,7 +156,6 @@ static int init_drvdata(struct pci_dev *dev) {
 
   mutex_init(&drvdata->cmd_mutex);
   sema_init(&drvdata->fifo_wait, 0);
-  sema_init(&drvdata->fifo_queue, 1);
 
   spin_lock_init(&drvdata->fence_lock);
   init_waitqueue_head(&drvdata->fence_wait);

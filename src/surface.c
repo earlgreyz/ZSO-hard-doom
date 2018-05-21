@@ -25,16 +25,13 @@
 
 static void fence_next(struct doom_prv *drvdata) {
   unsigned long flags;
-  uint32_t last;
 
   spin_lock_irqsave(&drvdata->fence_lock, flags);
-  last = drvdata->fence;
-
-  drvdata->fence = (last + 1) % HARDDOOM_FENCE_MASK;
+  drvdata->fence = (drvdata->fence + 1) % HARDDOOM_FENCE_MASK;
   cmd(drvdata, HARDDOOM_CMD_FENCE(drvdata->fence));
-  cmd_commit(drvdata);
-
   spin_unlock_irqrestore(&drvdata->fence_lock, flags);
+
+  cmd_commit(drvdata);
 }
 
 static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
