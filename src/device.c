@@ -44,13 +44,13 @@ static long doomdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg
 
   switch (cmd) {
     case DOOMDEV_IOCTL_CREATE_SURFACE:
-      return surface_create(prv, (struct doomdev_ioctl_create_surface *) arg);
+      return surface_create(prv, (struct doomdev_ioctl_create_surface __user *) arg);
     case DOOMDEV_IOCTL_CREATE_TEXTURE:
-      return texture_create(prv, (struct doomdev_ioctl_create_texture *) arg);
+      return texture_create(prv, (struct doomdev_ioctl_create_texture __user *) arg);
     case DOOMDEV_IOCTL_CREATE_FLAT:
-      return flat_create(prv, (struct doomdev_ioctl_create_flat *) arg);
+      return flat_create(prv, (struct doomdev_ioctl_create_flat __user *) arg);
     case DOOMDEV_IOCTL_CREATE_COLORMAPS:
-      return colormaps_create(prv, (struct doomdev_ioctl_create_colormaps *) arg);
+      return colormaps_create(prv, (struct doomdev_ioctl_create_colormaps __user *) arg);
     default:
       return -ENOTTY;
   }

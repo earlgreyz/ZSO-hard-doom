@@ -43,7 +43,7 @@ cmd_err:
   return err;
 }
 
-static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects *args) {
+static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects __user *args) {
   long err;
 
   long i = 0;
@@ -99,7 +99,7 @@ src_err:
   return err;
 }
 
-static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects *args) {
+static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects __user *args) {
   long err;
 
   long i = 0;
@@ -139,7 +139,7 @@ cmd_err:
   return err;
 }
 
-static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines *args) {
+static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines __user *args) {
   long err;
 
   long i = 0;
@@ -180,7 +180,7 @@ cmd_err:
   return err;
 }
 
-static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background *args) {
+static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background __user *args) {
   long err;
 
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
@@ -215,7 +215,7 @@ flat_err:
   return err;
 }
 
-static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns *args) {
+static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns __user *args) {
   long err;
 
   long i = 0;
@@ -317,7 +317,7 @@ texture_err:
   return err;
 }
 
-static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans *args) {
+static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans __user *args) {
   long err;
 
   long i = 0;
@@ -414,17 +414,17 @@ flat_err:
 static long surface_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
   switch (cmd) {
     case DOOMDEV_SURF_IOCTL_COPY_RECTS:
-      return surface_copy_rects(file, (struct doomdev_surf_ioctl_copy_rects *) arg);
+      return surface_copy_rects(file, (struct doomdev_surf_ioctl_copy_rects __user *) arg);
     case DOOMDEV_SURF_IOCTL_FILL_RECTS:
-      return surface_fill_rects(file, (struct doomdev_surf_ioctl_fill_rects *) arg);
+      return surface_fill_rects(file, (struct doomdev_surf_ioctl_fill_rects __user *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_LINES:
-      return surface_draw_lines(file, (struct doomdev_surf_ioctl_draw_lines *) arg);
+      return surface_draw_lines(file, (struct doomdev_surf_ioctl_draw_lines __user *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_BACKGROUND:
-      return surface_draw_background(file, (struct doomdev_surf_ioctl_draw_background *) arg);
+      return surface_draw_background(file, (struct doomdev_surf_ioctl_draw_background __user *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_COLUMNS:
-      return surface_draw_columns(file, (struct doomdev_surf_ioctl_draw_columns *) arg);
+      return surface_draw_columns(file, (struct doomdev_surf_ioctl_draw_columns __user *) arg);
     case DOOMDEV_SURF_IOCTL_DRAW_SPANS:
-      return surface_draw_spans(file, (struct doomdev_surf_ioctl_draw_spans *) arg);
+      return surface_draw_spans(file, (struct doomdev_surf_ioctl_draw_spans __user *) arg);
     default:
       return -ENOTTY;
   }
@@ -557,7 +557,7 @@ static int allocate_surface(struct surface_prv *prv, size_t size) {
   return 0;
 }
 
-long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface *args) {
+long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface __user *args) {
   long err;
 
   struct surface_prv *prv;

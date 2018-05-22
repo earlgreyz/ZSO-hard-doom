@@ -28,7 +28,7 @@ struct texture_prv {
  * @success returns a newly created texture file descriptor.
  * @failure returns a negated error code.
  **/
-long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_texture *args);
+long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_texture __user *args);
 
 /**
  * Checks if a given fd is a texture file descriptor.

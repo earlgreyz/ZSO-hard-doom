@@ -41,7 +41,7 @@ int colormaps_get(struct doom_prv *drvdata, struct fd *fd, struct colormaps_prv 
   return 0;
 }
 
-long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps *args) {
+long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps __user *args) {
   long err;
 
   struct colormaps_prv *prv;

@@ -30,7 +30,7 @@ struct surface_prv {
  * @success returns a newly created surface file descriptor.
  * @failure returns a negated error code.
  **/
-long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface *args);
+long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface __user *args);
 
 /**
  * Checks if a given fd is a surface file descriptor.

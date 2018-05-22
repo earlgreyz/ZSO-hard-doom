@@ -24,7 +24,7 @@ struct colormaps_prv {
  * @success returns a newly created colormaps file descriptor.
  * @failure returns a negated error code.
  **/
-long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps *args);
+long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps __user *args);
 
 /**
  * Checks if a given fd is a colormaps file descriptor.

@@ -67,7 +67,7 @@ static int allocate_texture(struct texture_prv *prv, size_t size) {
   return 0;
 }
 
-long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_texture *args) {
+long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_texture __user *args) {
   long err;
 
   struct texture_prv *prv;

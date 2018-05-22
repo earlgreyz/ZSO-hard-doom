@@ -39,7 +39,7 @@ int flat_get(struct doom_prv *drvdata, struct fd *fd, struct flat_prv **res) {
   return 0;
 }
 
-long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *args) {
+long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat __user *args) {
   long err;
 
   struct flat_prv *prv;

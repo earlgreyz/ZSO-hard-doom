@@ -21,7 +21,7 @@ struct flat_prv {
  * @success returns a newly created flat file descriptor.
  * @failure returns a negated error code.
  **/
-long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat *args);
+long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat __user *args);
 
 /**
  * Finds a flat created on the same device based on the fd.
