@@ -43,17 +43,22 @@ cmd_err:
   return err;
 }
 
-static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects __user *args) {
+static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy_rects __user *uargs) {
   long err;
 
   long i = 0;
-  struct doomdev_copy_rect __user *rect;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
 
   struct fd src_fd;
   struct surface_prv *src_prv;
 
-  src_fd = fdget(args->surf_src_fd);
+  struct doomdev_surf_ioctl_copy_rects args;
+  struct doomdev_copy_rect rect;
+
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
+
+  src_fd = fdget(args.surf_src_fd);
   if ((err = surface_get(prv->drvdata, &src_fd, &src_prv)))
     goto src_err;
 
@@ -69,16 +74,21 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
   }
   cmd_commit(prv->drvdata);
 
-  for (i = 0; i < args->rects_num; ++i) {
-    rect = (struct doomdev_copy_rect *) args->rects_ptr + i;
-    if (!is_valid_copy_rect(prv, src_prv, rect)) {
+  for (i = 0; i < args.rects_num; ++i) {
+    if (copy_from_user(&rect, (void __user *) args.rects_ptr + i * sizeof(rect), sizeof(rect))) {
+      err = -EFAULT;
+      goto cmd_err;
+    }
+
+    if (!is_valid_copy_rect(prv, src_prv, &rect)) {
       err = -EINVAL;
       goto cmd_err;
     }
+
     _MUST(cmd_wait(prv->drvdata, 4));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(rect->pos_src_x, rect->pos_src_y)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_COPY_RECT(rect->width, rect->height)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect.pos_dst_x, rect.pos_dst_y)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(rect.pos_src_x, rect.pos_src_y)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_COPY_RECT(rect.width, rect.height)));
     cmd_commit(prv->drvdata);
   }
 
@@ -99,12 +109,17 @@ src_err:
   return err;
 }
 
-static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects __user *args) {
+static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill_rects __user *uargs) {
   long err;
 
   long i = 0;
-  struct doomdev_fill_rect __user *rect;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  struct doomdev_surf_ioctl_fill_rects args;
+  struct doomdev_fill_rect rect;
+
+  if (copy_from_user(&args, (void __user *) uargs, sizeof(args)))
+    return -EFAULT;
 
   if ((err = mutex_lock_interruptible(&prv->drvdata->cmd_mutex)))
     return err;
@@ -113,17 +128,21 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
   _MUST(select_surface(prv, SELECT_SURF_DST | SELECT_SURF_DIMS));
   cmd_commit(prv->drvdata);
 
-  for (i = 0; i < args->rects_num; ++i) {
-    rect = (struct doomdev_fill_rect __user *) args->rects_ptr + i;
-    if (!is_valid_fill_rect(prv, rect)) {
+  for (i = 0; i < args.rects_num; ++i) {
+    if (copy_from_user(&rect, (void __user *) args.rects_ptr + i * sizeof(rect), sizeof(rect))) {
+      err = -EFAULT;
+      goto cmd_err;
+    }
+
+    if (!is_valid_fill_rect(prv, &rect)) {
       err = -EINVAL;
       goto cmd_err;
     }
 
     _MUST(cmd_wait(prv->drvdata, 4));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(rect->color)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect->pos_dst_x, rect->pos_dst_y)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_RECT(rect->width, rect->height)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(rect.color)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect.pos_dst_x, rect.pos_dst_y)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_RECT(rect.width, rect.height)));
     cmd_commit(prv->drvdata);
   }
 
