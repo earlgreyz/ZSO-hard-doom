@@ -208,14 +208,20 @@ cmd_err:
   return err;
 }
 
-static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background __user *args) {
+static long surface_draw_background(struct file *file, struct doomdev_surf_ioctl_draw_background __user *uargs) {
   long err;
 
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  struct doomdev_surf_ioctl_draw_background args;
+
   struct fd flat_fd;
   struct flat_prv *flat_prv;
 
-  flat_fd = fdget(args->flat_fd);
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
+
+  flat_fd = fdget(args.flat_fd);
   if ((err = flat_get(prv->drvdata, &flat_fd, &flat_prv)))
     goto flat_err;
 
