@@ -21,9 +21,7 @@
 #define HARDDOOM_PCI_RES_NAME     "harddoom"
 #define HARDDOOM_PCI_IRQ_NAME     "harddoom"
 
-static int start_device(struct doom_prv *drvdata) {
-  int err;
-
+static void start_device(struct doom_prv *drvdata) {
   size_t i;
   uint32_t data;
   void __iomem *BAR0 = drvdata->BAR0;
@@ -34,11 +32,10 @@ static int start_device(struct doom_prv *drvdata) {
   }
 
   iowrite32(HARDDOOM_RESET_ALL, BAR0 + HARDDOOM_RESET);
-  if ((err = cmd_init(drvdata)))
-    return err;
 
   iowrite32(HARDDOOM_INTR_MASK, BAR0 + HARDDOOM_INTR);
-  iowrite32(HARDDOOM_INTR_MASK & ~HARDDOOM_INTR_PONG_ASYNC, BAR0 + HARDDOOM_INTR_ENABLE);
+  iowrite32(HARDDOOM_INTR_MASK & ~HARDDOOM_INTR_PONG_ASYNC & ~HARDDOOM_INTR_FE_ERROR, \
+      BAR0 + HARDDOOM_INTR_ENABLE);
   iowrite32(0, BAR0 + HARDDOOM_FENCE_LAST);
   iowrite32(drvdata->cmd_dma, BAR0 + HARDDOOM_CMD_READ_PTR);
   iowrite32(drvdata->cmd_dma, BAR0 + HARDDOOM_CMD_WRITE_PTR);
@@ -46,7 +43,6 @@ static int start_device(struct doom_prv *drvdata) {
 
   data = ioread32(drvdata->BAR0 + HARDDOOM_CMD_READ_PTR);
   data = ioread32(drvdata->BAR0 + HARDDOOM_CMD_WRITE_PTR);
-  return 0;
 }
 
 static void stop_device(struct doom_prv *drvdata) {
@@ -55,8 +51,6 @@ static void stop_device(struct doom_prv *drvdata) {
   iowrite32(0, BAR0 + HARDDOOM_ENABLE);
   iowrite32(0, BAR0 + HARDDOOM_INTR_ENABLE);
   (void) ioread32(BAR0 + HARDDOOM_ENABLE);
-
-  cmd_destroy(drvdata);
 }
 
 static irqreturn_t irq_handler(int irq, void *dev) {
@@ -85,22 +79,10 @@ static irqreturn_t irq_handler(int irq, void *dev) {
     interrupts &= ~HARDDOOM_INTR_FENCE;
   }
 
-  // Handle FE_ERROR
-  if (interrupts & HARDDOOM_INTR_FE_ERROR) {
-    printk(KERN_ERR "[doomirq] FE_ERROR %x for command %x\n", \
-      ioread32(drvdata->BAR0 + HARDDOOM_FE_ERROR_CODE), \
-      ioread32(drvdata->BAR0 + HARDDOOM_FE_ERROR_CMD));
-    interrupts &= ~HARDDOOM_INTR_FE_ERROR;
-  }
-
-  if (interrupts & HARDDOOM_INTR_FIFO_OVERFLOW) {
-    printk(KERN_ERR "[doomirq] FIFO OVERFLOW occurred\n");
-    interrupts &= ~HARDDOOM_INTR_FIFO_OVERFLOW;
-  }
-
-  // Any other interrupt
+  // All other errors are critical
   if (interrupts) {
-    printk(KERN_ERR "[doomirq] Unknown interrupt occurred %x\n", interrupts);
+    stop_device(drvdata);
+    start_device(drvdata);
   }
 
   return IRQ_HANDLED;
@@ -179,6 +161,7 @@ init_private_kzalloc_err:
 static void destroy_drvdata(struct pci_dev *dev) {
   struct doom_prv *drvdata = (struct doom_prv *) pci_get_drvdata(dev);
   stop_device(drvdata);
+  cmd_destroy(drvdata);
   destroy_device(drvdata);
   pci_iounmap(dev, drvdata->BAR0);
   kfree(drvdata);
@@ -227,13 +210,15 @@ static int probe(struct pci_dev *dev, const struct pci_device_id *id) {
     goto probe_irq_err;
   }
 
-  if ((err = start_device(drvdata))) {
-      printk(KERN_ERR "[doompci] probe error: start_device\n");
-      goto probe_start_err;
+  if ((err = cmd_init(drvdata))) {
+    printk(KERN_ERR "[doompci] probe error: cmd_init\n");
+    goto probe_cmd_init;
   }
+
+  start_device(drvdata);
   return 0;
 
-probe_start_err:
+probe_cmd_init:
   free_irq(dev->irq, drvdata);
 probe_irq_err:
   pci_clear_master(dev);
