@@ -609,18 +609,22 @@ static int allocate_surface(struct surface_prv *prv, size_t size) {
   return 0;
 }
 
-long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface __user *args) {
+long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surface __user *uargs) {
   long err;
 
   struct surface_prv *prv;
+  struct doomdev_ioctl_create_surface args;
   int fd;
   struct fd surface_fd;
 
-  if (args->width > SURFACE_MAX_SIZE || args->height > SURFACE_MAX_SIZE) {
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
+
+  if (args.width > SURFACE_MAX_SIZE || args.height > SURFACE_MAX_SIZE) {
     return -EOVERFLOW;
-  } else if (args->width < SURFACE_MIN_WIDTH
-      || (args->width & SURFACE_WIDTH_MASK) != 0
-      || args->height < SURFACE_MIN_HEIGHT) {
+  } else if (args.width < SURFACE_MIN_WIDTH
+      || (args.width & SURFACE_WIDTH_MASK) != 0
+      || args.height < SURFACE_MIN_HEIGHT) {
     return -EINVAL;
   }
 
@@ -633,12 +637,12 @@ long surface_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_surfac
 
   *prv = (struct surface_prv){
     .drvdata = drvdata,
-    .width = args->width,
-    .height = args->height,
+    .width = args.width,
+    .height = args.height,
     .dirty = false,
   };
 
-  if ((err = allocate_surface(prv, args->width * args->height))) {
+  if ((err = allocate_surface(prv, args.width * args.height))) {
     printk(KERN_WARNING "[doom_surface] surface_create error: allocate_surface\n");
     goto create_allocate_err;
   }
