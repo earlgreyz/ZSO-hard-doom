@@ -22,11 +22,12 @@ static int select_surface_src(struct surface_prv *surface) {
 static int select_surface_dst(struct surface_prv *surface) {
   int err;
 
+  surface->dirty = true;
+
   if (surface->drvdata->surf_dst == surface->surface_dma)
     return 0;
 
   _MUST(cmd(surface->drvdata, HARDDOOM_CMD_SURF_DST_PT(surface->pt_dma)));
-  surface->dirty = true;
   surface->drvdata->surf_dst = surface->surface_dma;
 
   return 0;
