@@ -249,12 +249,14 @@ flat_err:
   return err;
 }
 
-static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns __user *args) {
+static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_draw_columns __user *uargs) {
   long err;
 
   long i = 0;
-  struct doomdev_column __user *column;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  struct doomdev_surf_ioctl_draw_columns args;
+  struct doomdev_column column;
 
   bool use_texture, use_translations, use_colormaps;
   struct fd texture_fd = {};
@@ -262,24 +264,27 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
   struct fd colormaps_fd = {}, translations_fd = {};
   struct colormaps_prv *colormaps = NULL, *translations = NULL;
 
-  use_texture = !(args->draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ);
-  use_translations = (args->draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE);
-  use_colormaps = (args->draw_flags & (DOOMDEV_DRAW_FLAGS_FUZZ | DOOMDEV_DRAW_FLAGS_COLORMAP));
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
+
+  use_texture = !(args.draw_flags & DOOMDEV_DRAW_FLAGS_FUZZ);
+  use_translations = (args.draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE);
+  use_colormaps = (args.draw_flags & (DOOMDEV_DRAW_FLAGS_FUZZ | DOOMDEV_DRAW_FLAGS_COLORMAP));
 
   if (use_texture) {
-    texture_fd = fdget(args->texture_fd);
+    texture_fd = fdget(args.texture_fd);
     if ((err = texture_get(prv->drvdata, &texture_fd, &texture)))
       goto texture_err;
   }
 
   if (use_translations) {
-    translations_fd = fdget(args->translations_fd);
+    translations_fd = fdget(args.translations_fd);
     if ((err = colormaps_get(prv->drvdata, &translations_fd, &translations)))
       goto translations_err;
   }
 
   if (use_colormaps) {
-    colormaps_fd = fdget(args->colormaps_fd);
+    colormaps_fd = fdget(args.colormaps_fd);
     if ((err = colormaps_get(prv->drvdata, &colormaps_fd, &colormaps)))
       goto colormaps_err;
   }
@@ -294,31 +299,35 @@ static long surface_draw_columns(struct file *file, struct doomdev_surf_ioctl_dr
     _MUST(select_texture(texture));
 
   if (use_translations)
-    _MUST(select_colormap(translations, args->translation_idx, SELECT_CMAP_TRANS));
+    _MUST(select_colormap(translations, args.translation_idx, SELECT_CMAP_TRANS));
 
-  _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_PARAMS(args->draw_flags)));
+  _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_PARAMS(args.draw_flags)));
   cmd_commit(prv->drvdata);
 
-  for (i = 0; i < args->columns_num; ++i) {
-    column = (struct doomdev_column __user *) args->columns_ptr + i;
-    if (!is_valid_draw_column(prv, column)) {
+  for (i = 0; i < args.columns_num; ++i) {
+    if (copy_from_user(&column, (void __user *) args.columns_ptr + i * sizeof(column), sizeof(column))) {
+      err = -EFAULT;
+      goto cmd_err;
+    }
+
+    if (!is_valid_draw_column(prv, &column)) {
       err = -EINVAL;
       goto cmd_err;
     }
 
     _MUST(cmd_wait(prv->drvdata, 7));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(column->x, column->y1)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(column->x, column->y2)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(column.x, column.y1)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(column.x, column.y2)));
 
     if (use_texture) {
-      _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTART(column->ustart)));
-      _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTEP(column->ustep)));
+      _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTART(column.ustart)));
+      _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTEP(column.ustep)));
     }
 
     if (use_colormaps)
-      _MUST(select_colormap(colormaps, column->colormap_idx, SELECT_CMAP_COLOR));
+      _MUST(select_colormap(colormaps, column.colormap_idx, SELECT_CMAP_COLOR));
 
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_COLUMN(column->texture_offset)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_COLUMN(column.texture_offset)));
     cmd_commit(prv->drvdata);
   }
 
