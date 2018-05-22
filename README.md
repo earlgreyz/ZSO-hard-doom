@@ -56,9 +56,9 @@ dopiero po wstawienu do kolejki całego pakietu np.:
 ```c
 // surface.c:163
 _MUST(cmd_wait(prv->drvdata, 5));
-_MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line->color)));
-_MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line->pos_a_x, line->pos_a_y)));
-_MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line->pos_b_x, line->pos_b_y)));
+_MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line.color)));
+_MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line.pos_a_x, line.pos_a_y)));
+_MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line.pos_b_x, line.pos_b_y)));
 _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_LINE));
 cmd_commit(prv->drvdata);
 ```
