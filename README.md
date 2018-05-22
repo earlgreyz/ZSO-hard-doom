@@ -1,5 +1,5 @@
 # Podział na pliki
-
+- `include/*` pliki nagłówkowe dołączone do zadania
 - `cmd` odpowiada za obsługę bloku poleceń:
   - alokację i zwolnienie pamięci dla bloku poleceń
   - wysyłanie poleceń
@@ -73,9 +73,10 @@ Synchronizacja w read została zrealizowana z pomocą mechanizmu `FENCE` oraz
 kolejki oczekiwania. Po każdej operacji `ioctl` rysującej na buforze ramki
 wysyłane jest polecenie `FENCE` z kolejnymi liczbami przechowywanymi
 `doom_prv.fence`. Gdy proces chce czytać dane pobiera aktualny numer `fence` i
-czeka na przerwanie (aby uniknąć wyścigu użyto `wait_event_interruptible_timeout`,
-z częstotliwością _HZ / 10_ (100 ms), po których ponownie zostanie sprawdzony
-warunek.
+czeka na przerwanie. Aby uniknąć wyścigu (proces wysyła wait i czeka, ale zanim
+wykona sie przerwanie kolejne zapytanie zwiększa rejestr wait itd. więc przerwanie
+nigdy nie nadchodzi) użyto `wait_event_interruptible_timeout`, z częstotliwością
+_HZ / 10_ (100 ms), po których ponownie zostanie sprawdzony warunek.
 
 # Cache
 Wiele parametrów urządzenia jest cache'owancyh w strukturze `doom_prv`, pozwalając

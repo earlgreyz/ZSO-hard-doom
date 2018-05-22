@@ -31,6 +31,7 @@ struct doom_prv {
   spinlock_t        fence_lock;   // Spinlock for changing the FENCE counter.
   uint32_t          fence;        // Fence counter.
   uint32_t          fence_last;   // Last FENCE, which has been completed.
+  struct mutex      read_mutex;   // Mutex for read.
 
   // Cache for currently set values
   uint32_t          surf_width;   // Currently selected surface width.

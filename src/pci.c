@@ -137,6 +137,7 @@ static int init_drvdata(struct pci_dev *dev) {
   drvdata->pci = &dev->dev;
 
   mutex_init(&drvdata->cmd_mutex);
+  mutex_init(&drvdata->read_mutex);
   sema_init(&drvdata->fifo_wait, 0);
 
   spin_lock_init(&drvdata->fence_lock);

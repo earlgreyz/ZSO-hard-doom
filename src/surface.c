@@ -507,7 +507,7 @@ static loff_t surface_llseek(struct file *file, loff_t filepos, int whence) {
 }
 
 static bool fence_passed(uint32_t fence, uint32_t fence_last) {
-  return fence_last >= fence || (fence_last < 0x1000000 && fence > 0x03000000);
+  return fence_last >= fence || (fence_last < 0x1000 && fence > 0x03fff000);
 }
 
 static ssize_t surface_read(struct file *file, char __user *buf, size_t count, loff_t *filepos) {
@@ -522,6 +522,9 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
   if (*filepos > size || *filepos < 0)
     return 0;
 
+  if ((err = mutex_lock_interruptible(&prv->drvdata->read_mutex)))
+    return err;
+
   spin_lock_irqsave(&prv->drvdata->fence_lock, flags);
   fence = prv->drvdata->fence;
   iowrite32(HARDDOOM_INTR_FENCE, prv->drvdata->BAR0 + HARDDOOM_INTR);
@@ -532,13 +535,14 @@ static ssize_t surface_read(struct file *file, char __user *buf, size_t count, l
   spin_unlock_irqrestore(&prv->drvdata->fence_lock, flags);
 
   if (!fence_passed(fence, fence_last)) {
-    do {
-      err = wait_event_interruptible_timeout(prv->drvdata->fence_wait, \
-          fence_passed(fence, prv->drvdata->fence_last), HZ / 10);
-      if (err == -ERESTARTSYS)
-        return err;
-    } while (err == 0);
+    if ((err = wait_event_interruptible(prv->drvdata->fence_wait, \
+        fence_passed(fence, prv->drvdata->fence_last)))) {
+      mutex_unlock(&prv->drvdata->read_mutex);
+      return err;
+    }
   }
+
+  mutex_unlock(&prv->drvdata->read_mutex);
 
   if (count > size - *filepos)
     count = size - *filepos;
