@@ -360,12 +360,14 @@ texture_err:
   return err;
 }
 
-static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans __user *args) {
+static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw_spans __user *uargs) {
   long err;
 
   long i = 0;
-  struct doomdev_span __user *span;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  struct doomdev_surf_ioctl_draw_spans args;
+  struct doomdev_span span;
 
   bool use_translations, use_colormaps;
   struct fd flat_fd = {};
@@ -373,21 +375,24 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
   struct fd colormaps_fd = {}, translations_fd = {};
   struct colormaps_prv *colormaps = NULL, *translations = NULL;
 
-  use_translations = args->draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE;
-  use_colormaps = args->draw_flags & DOOMDEV_DRAW_FLAGS_COLORMAP;
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
 
-  flat_fd = fdget(args->flat_fd);
+  use_translations = args.draw_flags & DOOMDEV_DRAW_FLAGS_TRANSLATE;
+  use_colormaps = args.draw_flags & DOOMDEV_DRAW_FLAGS_COLORMAP;
+
+  flat_fd = fdget(args.flat_fd);
   if ((err = flat_get(prv->drvdata, &flat_fd, &flat)))
     goto flat_err;
 
   if (use_translations) {
-    translations_fd = fdget(args->translations_fd);
+    translations_fd = fdget(args.translations_fd);
     if ((err = colormaps_get(prv->drvdata, &translations_fd, &translations)))
       goto translations_err;
   }
 
   if (use_colormaps) {
-    colormaps_fd = fdget(args->colormaps_fd);
+    colormaps_fd = fdget(args.colormaps_fd);
     if ((err = colormaps_get(prv->drvdata, &colormaps_fd, &colormaps)))
       goto colormaps_err;
   }
@@ -397,31 +402,35 @@ static long surface_draw_spans(struct file *file, struct doomdev_surf_ioctl_draw
 
   _MUST(cmd_wait(prv->drvdata, 5));
   _MUST(select_surface(prv, SELECT_SURF_DST | SELECT_SURF_DIMS));
-  _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_PARAMS(args->draw_flags)));
+  _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_PARAMS(args.draw_flags)));
   _MUST(cmd(prv->drvdata, HARDDOOM_CMD_FLAT_ADDR(flat->flat_dma)));
 
   if (use_translations)
-    _MUST(select_colormap(translations, args->translation_idx, SELECT_CMAP_TRANS));
+    _MUST(select_colormap(translations, args.translation_idx, SELECT_CMAP_TRANS));
 
   cmd_commit(prv->drvdata);
 
-  for (i = 0; i < args->spans_num; ++i) {
-    span = (struct doomdev_span __user *) args->spans_ptr + i;
-    if (!is_valid_draw_span(prv, span)) {
+  for (i = 0; i < args.spans_num; ++i) {
+    if (copy_from_user(&span, (void __user *) args.spans_ptr + i * sizeof(span), sizeof(span))) {
+      err = -EFAULT;
+      goto cmd_err;
+    }
+
+    if (!is_valid_draw_span(prv, &span)) {
       err = -EINVAL;
       goto cmd_err;
     }
 
     _MUST(cmd_wait(prv->drvdata, 9));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTART(span->ustart)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTEP(span->ustep)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_VSTART(span->vstart)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_VSTEP(span->vstep)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(span->x1, span->y)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(span->x2, span->y)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTART(span.ustart)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_USTEP(span.ustep)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_VSTART(span.vstart)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_VSTEP(span.vstep)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(span.x1, span.y)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(span.x2, span.y)));
 
     if (use_colormaps)
-      _MUST(select_colormap(colormaps, span->colormap_idx, SELECT_CMAP_COLOR));
+      _MUST(select_colormap(colormaps, span.colormap_idx, SELECT_CMAP_COLOR));
 
     _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_SPAN));
     cmd_commit(prv->drvdata);
