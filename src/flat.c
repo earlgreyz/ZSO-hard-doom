@@ -39,11 +39,15 @@ int flat_get(struct doom_prv *drvdata, struct fd *fd, struct flat_prv **res) {
   return 0;
 }
 
-long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat __user *args) {
+long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat __user *uargs) {
   long err;
 
   struct flat_prv *prv;
+  struct doomdev_ioctl_create_flat args;
   int fd;
+
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
 
   prv = (struct flat_prv *) kmalloc(sizeof(struct flat_prv), GFP_KERNEL);
   if (prv == NULL) {
@@ -63,7 +67,7 @@ long flat_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_flat __us
     goto create_allocate_err;
   }
 
-  err = copy_from_user(prv->flat, (void *) args->data_ptr, FLAT_SIZE);
+  err = copy_from_user(prv->flat, (void *) args.data_ptr, FLAT_SIZE);
   if (err > 0) {
     printk(KERN_WARNING "[doom_flat] flat_create error: copy_from_user\n");
     err = -EFAULT;

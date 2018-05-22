@@ -67,16 +67,19 @@ static int allocate_texture(struct texture_prv *prv, size_t size) {
   return 0;
 }
 
-long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_texture __user *args) {
+long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_texture __user *uargs) {
   long err;
 
   struct texture_prv *prv;
+  struct doomdev_ioctl_create_texture args;
   int fd;
   size_t aligned_size;
 
-  if (args->size > TEXTURE_MAX_SIZE || args->height > TEXTURE_MAX_HEIGHT) {
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
+
+  if (args.size > TEXTURE_MAX_SIZE || args.height > TEXTURE_MAX_HEIGHT)
     return -EOVERFLOW;
-  }
 
   prv = (struct texture_prv *) kmalloc(sizeof(struct texture_prv), GFP_KERNEL);
   if (prv == NULL) {
@@ -85,12 +88,12 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
     goto create_kmalloc_err;
   }
 
-  aligned_size = ALIGN(args->size, TEXTURE_ALIGNMENT);
+  aligned_size = ALIGN(args.size, TEXTURE_ALIGNMENT);
 
   *prv = (struct texture_prv){
     .drvdata = drvdata,
-    .height = args->height,
-    .size = args->size,
+    .height = args.height,
+    .size = args.size,
   };
 
   if ((err = allocate_texture(prv, aligned_size))) {
@@ -98,14 +101,14 @@ long texture_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_textur
     goto create_allocate_err;
   }
 
-  err = copy_from_user(prv->texture, (void __user *) args->data_ptr, args->size);
+  err = copy_from_user(prv->texture, (void __user *) args.data_ptr, args.size);
   if (err > 0) {
     printk(KERN_WARNING "[doom_texture] texture_create error: copy_from_user\n");
     err = -EFAULT;
     goto create_copy_err;
   }
 
-  memset(prv->texture + args->size, 0, aligned_size - args->size);
+  memset(prv->texture + args.size, 0, aligned_size - args.size);
 
   fd = anon_inode_getfd(TEXTURE_FILE_TYPE, &texture_ops, prv, O_RDONLY);
   if (fd < 0) {

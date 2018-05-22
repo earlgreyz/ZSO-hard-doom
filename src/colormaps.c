@@ -41,15 +41,18 @@ int colormaps_get(struct doom_prv *drvdata, struct fd *fd, struct colormaps_prv 
   return 0;
 }
 
-long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps __user *args) {
+long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colormaps __user *uargs) {
   long err;
 
   struct colormaps_prv *prv;
+  struct doomdev_ioctl_create_colormaps args;
   int fd;
 
-  if (args->num > COLORMAPS_MAX_LENGTH) {
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
+
+  if (args.num > COLORMAPS_MAX_LENGTH)
     return -EOVERFLOW;
-  }
 
   prv = (struct colormaps_prv *) kmalloc(sizeof(struct colormaps_prv), GFP_KERNEL);
   if (prv == NULL) {
@@ -60,8 +63,8 @@ long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colo
 
   *prv = (struct colormaps_prv){
     .drvdata = drvdata,
-    .num = args->num,
-    .size = COLORMAPS_MAP_SIZE * args->num,
+    .num = args.num,
+    .size = COLORMAPS_MAP_SIZE * args.num,
   };
 
   prv->colormaps = dma_alloc_coherent(prv->drvdata->pci, prv->size, &prv->colormaps_dma, GFP_KERNEL);
@@ -71,7 +74,7 @@ long colormaps_create(struct doom_prv *drvdata, struct doomdev_ioctl_create_colo
     goto create_allocate_err;
   }
 
-  err = copy_from_user(prv->colormaps, (void *) args->data_ptr, prv->size);
+  err = copy_from_user(prv->colormaps, (void *) args.data_ptr, prv->size);
   if (err > 0) {
     printk(KERN_WARNING "[doom_colormaps] colormaps_create error: copy_from_user\n");
     err = -EFAULT;
