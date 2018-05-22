@@ -101,7 +101,7 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
 cmd_err:
   err = i == 0 ? err : i;
   if (fence_next(prv->drvdata))
-    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
+    printk(KERN_WARNING "FENCE_NEXT failed when handling an error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
 mutex_err:
 src_err:
@@ -153,17 +153,22 @@ static long surface_fill_rects(struct file *file, struct doomdev_surf_ioctl_fill
 cmd_err:
   err = i == 0 ? err : i;
   if (fence_next(prv->drvdata))
-    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
+    printk(KERN_WARNING "FENCE_NEXT failed when handling an error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
 
-static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines __user *args) {
+static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw_lines __user *uargs) {
   long err;
 
   long i = 0;
-  struct doomdev_line __user *line;
   struct surface_prv *prv = (struct surface_prv *) file->private_data;
+
+  struct doomdev_surf_ioctl_draw_lines args;
+  struct doomdev_line line;
+
+  if (copy_from_user(&args, uargs, sizeof(args)))
+    return -EFAULT;
 
   if ((err = mutex_lock_interruptible(&prv->drvdata->cmd_mutex)))
     return err;
@@ -172,17 +177,21 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
   _MUST(select_surface(prv, SELECT_SURF_DST | SELECT_SURF_DIMS));
   cmd_commit(prv->drvdata);
 
-  for (i = 0; i < args->lines_num; ++i) {
-    line = (struct doomdev_line __user *) args->lines_ptr + i;
-    if (!is_valid_draw_line(prv, line)) {
+  for (i = 0; i < args.lines_num; ++i) {
+    if (copy_from_user(&line, (void __user *) args.lines_ptr + i * sizeof(line), sizeof(line))) {
+      err = -EFAULT;
+      goto cmd_err;
+    }
+
+    if (!is_valid_draw_line(prv, &line)) {
       err = -EINVAL;
       goto cmd_err;
     }
 
     _MUST(cmd_wait(prv->drvdata, 5));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line->color)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line->pos_a_x, line->pos_a_y)));
-    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line->pos_b_x, line->pos_b_y)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_FILL_COLOR(line.color)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(line.pos_a_x, line.pos_a_y)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(line.pos_b_x, line.pos_b_y)));
     _MUST(cmd(prv->drvdata, HARDDOOM_CMD_DRAW_LINE));
     cmd_commit(prv->drvdata);
   }
@@ -194,7 +203,7 @@ static long surface_draw_lines(struct file *file, struct doomdev_surf_ioctl_draw
 cmd_err:
   err = i == 0 ? err : i;
   if (fence_next(prv->drvdata))
-    printk(KERN_WARNING "FENCE_NEXT failed when handling error");
+    printk(KERN_WARNING "FENCE_NEXT failed when handling an error");
   mutex_unlock(&prv->drvdata->cmd_mutex);
   return err;
 }
