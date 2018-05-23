@@ -85,10 +85,11 @@ static long surface_copy_rects(struct file *file, struct doomdev_surf_ioctl_copy
       goto cmd_err;
     }
 
-    _MUST(cmd_wait(prv->drvdata, 4));
+    _MUST(cmd_wait(prv->drvdata, 5));
     _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_A(rect.pos_dst_x, rect.pos_dst_y)));
     _MUST(cmd(prv->drvdata, HARDDOOM_CMD_XY_B(rect.pos_src_x, rect.pos_src_y)));
     _MUST(cmd(prv->drvdata, HARDDOOM_CMD_COPY_RECT(rect.width, rect.height)));
+    _MUST(cmd(prv->drvdata, HARDDOOM_CMD_INTERLOCK));
     cmd_commit(prv->drvdata);
   }
 

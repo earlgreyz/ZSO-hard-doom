@@ -52,14 +52,14 @@ int select_surface(struct surface_prv *surface, int flags) {
   if (flags & SELECT_SURF_SRC & SELECT_SURF_DST)
     return -EINVAL;
 
+  if (flags & SELECT_SURF_DIMS)
+    _MUST(select_surface_dims(surface->drvdata, surface->width, surface->height));
+
   if (flags & SELECT_SURF_SRC)
     _MUST(select_surface_src(surface));
 
   if (flags & SELECT_SURF_DST)
     _MUST(select_surface_dst(surface));
-
-  if (flags & SELECT_SURF_DIMS)
-    _MUST(select_surface_dims(surface->drvdata, surface->width, surface->height));
 
   return 0;
 }
