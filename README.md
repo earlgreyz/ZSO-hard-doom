@@ -75,8 +75,10 @@ wysyłane jest polecenie `FENCE` z kolejnymi liczbami przechowywanymi
 `doom_prv.fence`. Gdy proces chce czytać dane pobiera aktualny numer `fence` i
 czeka na przerwanie. Aby uniknąć wyścigu (proces wysyła wait i czeka, ale zanim
 wykona sie przerwanie kolejne zapytanie zwiększa rejestr wait itd. więc przerwanie
-nigdy nie nadchodzi) użyto `wait_event_interruptible_timeout`, z częstotliwością
-_HZ / 10_ (100 ms), po których ponownie zostanie sprawdzony warunek.
+nigdy nie nadchodzi) kolejne polecenia read sa kolejkowane przez założenie
+osobnego mutexa `doom_prv.read_mutex`. Zmniejszenie współbieżności jest tu
+konieczne dla uzyskania poprawności read i jednoczesnego uniknięcia aktywnego
+oczekiwania z ciaglym odczytem rejsetru `FENCE_LAST`.
 
 # Cache
 Wiele parametrów urządzenia jest cache'owancyh w strukturze `doom_prv`, pozwalając
